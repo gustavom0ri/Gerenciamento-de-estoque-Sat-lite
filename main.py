@@ -2,6 +2,10 @@ import tkinter as tk
 from tkinter import simpledialog, filedialog, messagebox
 from PIL import Image, ImageTk
 import datetime
+import pandas as pd
+from tkinter import simpledialog
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 estoque = []
 item_selecionado = None
@@ -301,6 +305,72 @@ def selecionar_item(item):
     atualizar_tela()
 
 
+def exportar_estoque():
+    if not estoque:
+        messagebox.showwarning("Exportar", "Nenhum item no estoque!")
+        return
+
+    # Cria DataFrame com os itens
+    df = pd.DataFrame([{
+        "Nome": item["nome"],
+        "Quantidade": item["quantidade"]
+    } for item in estoque])
+
+    # Menu de escolha de formato
+    menu = tk.Toplevel(root)
+    menu.title("Escolher formato")
+    menu.geometry("300x200")
+    menu.resizable(False, False)
+
+    def salvar_excel():
+        caminho = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
+        if caminho:
+            df.to_excel(caminho, index=False)
+            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+        menu.destroy()
+
+    def salvar_csv():
+        caminho = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if caminho:
+            df.to_csv(caminho, index=False)
+            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+        menu.destroy()
+
+    def salvar_txt():
+        caminho = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("TXT", "*.txt")])
+        if caminho:
+            with open(caminho, "w", encoding="utf-8") as f:
+                for item in estoque:
+                    f.write(f"{item['nome']} - Quantidade: {item['quantidade']}\n")
+            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+        menu.destroy()
+
+    def salvar_pdf():
+        caminho = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")])
+        if caminho:
+            c = canvas.Canvas(caminho, pagesize=letter)
+            largura, altura = letter
+            y = altura - 50
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, y, "Estoque Satelite")
+            y -= 30
+            c.setFont("Helvetica", 12)
+            for i, item in enumerate(estoque, start=1):
+                c.drawString(50, y, f"{i}. {item['nome']} - Quantidade: {item['quantidade']}")
+                y -= 20
+                if y < 50:
+                    c.showPage()
+                    y = altura - 50
+            c.save()
+            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+        menu.destroy()
+
+    # Botões para cada formato
+    tk.Button(menu, text="📄 Excel (.xlsx)", width=25, command=salvar_excel).pack(pady=10)
+    tk.Button(menu, text="📄 CSV (.csv)", width=25, command=salvar_csv).pack(pady=10)
+    tk.Button(menu, text="📄 TXT (.txt)", width=25, command=salvar_txt).pack(pady=10)
+    tk.Button(menu, text="📄 PDF (.pdf)", width=25, command=salvar_pdf).pack(pady=10)
+
 def atualizar_tela():
     for widget in conteudo.winfo_children():
         widget.destroy()
@@ -451,9 +521,11 @@ btn_editar = estilo_botao(
 
 btn_salvar = estilo_botao(
     barra_botoes, "💾 Exportar",
-    lambda: messagebox.showinfo("Salvar", "Salvar ainda não implementado"),
-    cor_fundo="#ffc107", cor_hover="#e0a800", lado="left"  # AMARELO
+    exportar_estoque,
+    cor_fundo="#ffc107", cor_hover="#e0a800", lado="left"
 )
+
+
 
 btn_historico = estilo_botao(
     barra_botoes, "📜 Histórico", toggle_historico,
