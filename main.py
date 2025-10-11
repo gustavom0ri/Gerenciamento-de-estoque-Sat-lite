@@ -366,10 +366,11 @@ def atualizar_historico():
     canvas_hist.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
-    def _on_mousewheel(event):
+    # Bind scroll do mouse apenas no canvas_hist
+    def _on_mousewheel_hist(event):
         canvas_hist.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-    painel_historico.bind_all("<MouseWheel>", _on_mousewheel)
+    canvas_hist.bind("<MouseWheel>", _on_mousewheel_hist)
 
     for acao in historico[::-1]:
         tk.Label(
@@ -421,6 +422,11 @@ def adicionar_item():
 
     topo = tk.Toplevel(root)
     topo.title("Quantidade")
+    topo.geometry("300x150")  # Tamanho fixo para centralizar
+    topo.update_idletasks()  # Atualiza para obter reqwidth e reqheight
+    x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
+    y = (root.winfo_screenheight() - topo.winfo_reqheight()) // 2
+    topo.geometry(f"+{x}+{y}")
     tk.Label(topo, text=f"Digite a quantidade para '{nome}':").pack(padx=10, pady=10)
     entry = tk.Entry(topo)
     entry.insert(0, "1")
@@ -493,6 +499,10 @@ def restaurar_item():
     topo = tk.Toplevel(root)
     topo.title("Restaurar Item")
     topo.geometry("450x350")
+    topo.update_idletasks()
+    x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
+    y = (root.winfo_screenheight() - topo.winfo_reqheight()) // 2
+    topo.geometry(f"+{x}+{y}")
     topo.transient(root)
     topo.grab_set()
 
@@ -591,6 +601,11 @@ def editar_item():
 
     topo = tk.Toplevel(root)
     topo.title("Editar Quantidade")
+    topo.geometry("300x150")  # Tamanho fixo para centralizar
+    topo.update_idletasks()
+    x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
+    y = (root.winfo_screenheight() - topo.winfo_reqheight()) // 2
+    topo.geometry(f"+{x}+{y}")
     tk.Label(topo, text=f"Digite a nova quantidade para '{novo_nome}':").pack(padx=10, pady=10)
     entry = tk.Entry(topo)
     entry.insert(0, str(item_selecionado["quantidade"]))
@@ -640,7 +655,9 @@ def adicionar_quantidade(item):
         salvar_no_excel()
         registrar_historico(
             f"⬆️ Adicionado +{valor} em '{item['nome']}' (ID: {item['id']}) → total {item['quantidade']}")
+        pos = conteudo_canvas.yview()[0]
         atualizar_tela()
+        conteudo_canvas.yview_moveto(pos)
     except ValueError:
         messagebox.showerror("Erro", "Digite um número válido!")
 
@@ -659,7 +676,9 @@ def subtrair_quantidade(item):
         item["var_esq"].set(1)
         salvar_no_excel()
         registrar_historico(f"⬇️ Removido -{valor} de '{item['nome']}' (ID: {item['id']}) → total {nova_qtd}")
+        pos = conteudo_canvas.yview()[0]
         atualizar_tela()
+        conteudo_canvas.yview_moveto(pos)
     except ValueError:
         messagebox.showerror("Erro", "Digite um número válido!")
 
@@ -689,6 +708,10 @@ def exportar_estoque():
     menu = tk.Toplevel(root)
     menu.title("Escolher formato")
     menu.geometry("300x200")
+    menu.update_idletasks()
+    x = (root.winfo_screenwidth() - menu.winfo_reqwidth()) // 2
+    y = (root.winfo_screenheight() - menu.winfo_reqheight()) // 2
+    menu.geometry(f"+{x}+{y}")
     menu.resizable(False, False)
 
     def salvar_excel():
@@ -823,6 +846,9 @@ def atualizar_tela():
         frame_botoes = tk.Frame(frame_item, bg=cor_card)
         frame_botoes.pack(fill="x", pady=10)
 
+        entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=6, justify="center", font=("Arial", 12))
+        entry_sub.pack(side="left", padx=5)
+
         btn_sub = tk.Button(
             frame_botoes,
             text="➖",
@@ -837,9 +863,6 @@ def atualizar_tela():
             height=1
         )
         btn_sub.pack(side="left", padx=10)
-
-        entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=6, justify="center", font=("Arial", 12))
-        entry_sub.pack(side="left", padx=5)
 
         btn_add = tk.Button(
             frame_botoes,
@@ -964,11 +987,14 @@ scroll_frame = tk.Frame(conteudo_canvas, bg="#111")
 conteudo_canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
 
 
-def _on_mousewheel(event):
+# Bind scroll do mouse apenas no conteudo_canvas
+def _on_mousewheel_itens(event):
     conteudo_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
 
-frame_conteudo.bind_all("<MouseWheel>", _on_mousewheel)
+conteudo_canvas.bind("<MouseWheel>", _on_mousewheel_itens)
+scroll_frame.bind("<MouseWheel>", _on_mousewheel_itens)
+frame_conteudo.bind("<MouseWheel>", _on_mousewheel_itens)
 
 scroll_frame.bind("<Configure>", lambda e: conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all")))
 

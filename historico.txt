@@ -1,0 +1,79 @@
+[20:42:07] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_7) → total 16
+[20:42:08] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_7) → total 17
+[20:42:41] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_6) → total 18
+[20:42:42] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_6) → total 19
+[20:43:06] ➕ Adicionado 'Cano I' (ID: ID_10) com 14 unidades
+[20:43:16] ➕ Adicionado 'Cano y' (ID: ID_11) com 11 unidades
+[20:43:22] ➕ Adicionado 'Cano L' (ID: ID_12) com 190 unidades
+[20:43:34] ➕ Adicionado 'Cano T' (ID: ID_13) com 1 unidades
+[20:44:06] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 2
+[20:44:07] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 3
+[20:44:08] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 4
+[20:44:09] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 5
+[20:44:09] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 6
+[20:44:09] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 7
+[20:44:10] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 8
+[20:44:10] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 9
+[20:44:10] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 10
+[20:44:11] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 11
+[20:44:11] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 12
+[20:44:12] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 13
+[20:44:12] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 14
+[20:44:12] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 15
+[20:44:13] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 16
+[20:44:13] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 17
+[20:44:13] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 18
+[20:44:14] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 19
+[20:44:14] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 20
+[20:44:14] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 21
+[20:44:15] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 22
+[20:44:15] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_9) → total 23
+[20:45:46] ↩️ Desfeita a última ação
+[20:45:48] ↪️ Refeita a ação desfeita
+[20:45:49] ↩️ Desfeita a última ação
+[20:45:51] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_5) → total 2
+[20:45:53] ↩️ Desfeita a última ação
+[20:45:54] ↪️ Refeita a ação desfeita
+[20:48:20] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 2
+[20:48:23] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 3
+[20:48:27] ➖ Removido 'Cano T' (ID: ID_13) - Movido para Removidos
+[20:48:31] 🔄 Restaurado 'Cano T' (ID: ID_13) dos Removidos
+[20:48:34] ➖ Removido 'Cano T' (ID: ID_13) - Movido para Removidos
+[20:48:36] ↩️ Desfeita a última ação
+[20:48:39] ↪️ Refeita a ação desfeita
+[20:49:03] ✏️ Editado 'Cano L' (ID: ID_4) (1) → 'Cano Las' (1)
+[20:49:13] ➕ Adicionado 'dsds' (ID: ID_13) com 1 unidades
+[20:49:17] ↩️ Desfeita a última ação
+[23:07:50] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_5) → total 3
+[23:07:50] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_5) → total 4
+[23:07:54] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 191
+[23:07:56] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 192
+[23:07:57] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 193
+[23:07:59] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 194
+[23:08:00] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 195
+[23:08:11] ➕ Adicionado 'Cano T' (ID: ID_13) com 1 unidades
+[23:08:14] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 2
+[23:08:15] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 3
+[23:08:16] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 4
+[23:08:16] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 5
+[23:08:18] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_11) → total 12
+[23:08:21] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_11) → total 13
+[23:08:21] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_11) → total 14
+[23:08:22] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_11) → total 15
+[23:08:25] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 6
+[23:08:26] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 7
+[23:08:41] ➕ Adicionado 'Cabi Y' (ID: ID_14) com 6 unidades
+[23:08:49] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 7
+[23:08:50] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 8
+[23:08:51] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 9
+[23:08:52] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 10
+[23:08:52] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 11
+[23:09:16] ↩️ Desfeita a última ação
+[23:09:16] ↩️ Desfeita a última ação
+[23:16:34] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 196
+[23:16:35] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_12) → total 197
+[23:16:46] ✏️ Editado 'Cano i' (ID: ID_8) (1) → 'Cano i' (15)
+[23:16:48] ↩️ Desfeita a última ação
+[23:16:49] ↪️ Refeita a ação desfeita
+[23:16:56] 🔄 Restaurado 'Cano T' (ID: ID_13) dos Removidos
+[23:17:03] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 4
