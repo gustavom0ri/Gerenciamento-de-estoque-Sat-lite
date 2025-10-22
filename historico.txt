@@ -89,3 +89,55 @@
 [19:58:12] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 14
 [19:58:13] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 15
 [19:58:14] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 16
+[22:16:21] ➕ Adicionado 'Cano novo' (ID: ID_15) com 1 unidades, Preço: 23.0
+[22:16:37] ✏️ Editado 'Cano novo' (ID: ID_15) Qtd: 1 Preço: 23.0 → 'Cano novo' Qtd: 1 Preço: 23.0
+[22:16:47] ✏️ Editado 'Cano novo' (ID: ID_15) Qtd: 1 Preço: 23.0 → 'Cano novo' Qtd: 18 Preço: 23.0
+[22:17:01] ✏️ Editado 'Cano novo' (ID: ID_15) Qtd: 18 Preço: 23.0 → 'Cano novo' Qtd: 18 Preço: 23.0
+[22:17:17] ✏️ Editado 'Cano novo' (ID: ID_15) Qtd: 18 Preço: 23.0 → 'Cano novo' Qtd: 18 Preço: 23.0
+[22:17:24] ➖ Removido 'Cano novo' (ID: ID_15) - Movido para Removidos
+[22:17:29] ➖ Removido 'Cabi Y' (ID: ID_14) - Movido para Removidos
+[22:17:31] ➖ Removido 'Cano T' (ID: ID_13) - Movido para Removidos
+[22:17:32] ⬆️ Adicionado +1 em 'Cano L' (ID: ID_2) → total 20
+[22:17:33] ➖ Removido 'Cano L' (ID: ID_2) - Movido para Removidos
+[22:17:34] ➖ Removido 'Cano Las' (ID: ID_4) - Movido para Removidos
+[22:17:35] ➖ Removido 'Cano y' (ID: ID_5) - Movido para Removidos
+[22:17:39] ➖ Removido 'Cano y' (ID: ID_6) - Movido para Removidos
+[22:17:40] ➖ Removido 'Cano L' (ID: ID_7) - Movido para Removidos
+[22:17:42] ➖ Removido 'Cano i' (ID: ID_1) - Movido para Removidos
+[22:17:43] ➖ Removido 'Cano i' (ID: ID_8) - Movido para Removidos
+[22:17:45] ➖ Removido 'Cano L' (ID: ID_9) - Movido para Removidos
+[22:17:46] ➖ Removido 'Cano T' (ID: ID_3) - Movido para Removidos
+[22:17:47] ➖ Removido 'Cano I' (ID: ID_10) - Movido para Removidos
+[22:17:48] ➖ Removido 'Cano y' (ID: ID_11) - Movido para Removidos
+[22:17:50] ➖ Removido 'Cano L' (ID: ID_12) - Movido para Removidos
+[22:24:17] ➕ Adicionado 'Argamassa 20kg' (ID: ID_1) com 15 unidades, Preço: 50.0
+[22:25:02] ➕ Adicionado 'Betoneira' (ID: ID_2) com 3 unidades, Preço: 4000.0
+[22:26:11] ➕ Adicionado 'Bucha 12 mm' (ID: ID_3) com 340 unidades, Preço: 0.13
+[22:27:20] ➕ Adicionado 'bucha 6mm' (ID: ID_4) com 274 unidades, Preço: 0.02
+[22:28:01] ➕ Adicionado 'Bucha 8mm' (ID: ID_5) com 167 unidades, Preço: 0.1
+[22:28:45] ➕ Adicionado 'buxa 10mm' (ID: ID_6) com 190 unidades, Preço: 0.15
+[22:29:25] ➕ Adicionado 'cimento 20kg' (ID: ID_7) com 1 unidades, Preço: 406.9
+[22:32:55] ➕ Adicionado 'cano Iuva' (ID: ID_8) com 19 unidades, Preço: 9.47
+[22:33:45] ➕ Adicionado 'Tubo Joelho' (ID: ID_9) com 23 unidades, Preço: 5.0
+[22:34:19] ➕ Adicionado 'Tubo tee' (ID: ID_10) com 44 unidades, Preço: 5.24
+[22:36:07] ➕ Adicionado 'tubo y' (ID: ID_11) com 1 unidades, Preço: 9.2
+[22:36:44] ➕ Adicionado 'parafuso 6mm' (ID: ID_12) com 154 unidades, Preço: 0.27
+[22:38:20] ➕ Adicionado 'Prego' (ID: ID_13) com 562 unidades, Preço: 0.02
+[22:39:57] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 19 Preço: 9.47 → 'cano Iuva' Qtd: 20 Preço: 9.47
+[22:49:13] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 20 Preço: 9.47 → 'cano Iuva' Qtd: 20 Preço: 9.47
+[22:49:28] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 20 Preço: 9.47 → 'cano Iuva' Qtd: 21 Preço: 9.47
+[22:55:23] ✏️ Editado 'Argamassa 20kg' (ID: ID_1) Qtd: 15 Preço: 50.0 → 'Argamassa 20kg' Qtd: 15 Preço: 50.0
+[22:55:30] ✏️ Editado 'Argamassa 20kg' (ID: ID_1) Qtd: 15 Preço: 50.0 → 'Argamassa 20kg' Qtd: 16 Preço: 50.0
+[22:55:39] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 21 Preço: 9.47 → 'cano Iuva' Qtd: 21 Preço: 9.47
+[22:56:03] ⬆️ Adicionado +1 em 'cano Iuva' (ID: ID_8) → total 22
+[22:56:04] ⬆️ Adicionado +1 em 'cimento 20kg' (ID: ID_7) → total 2
+[22:56:12] ✏️ Editado 'cimento 20kg' (ID: ID_7) Qtd: 2 Preço: 406.9 → 'cimento 20kg' Qtd: 25 Preço: 406.9
+[23:40:58] ✏️ Editado 'Tubo Joelho' (ID: ID_9) Qtd: 23 Preço: 5.0 → 'Tubo Joelho' Qtd: 233 Preço: 5.0
+[23:41:04] ✏️ Editado 'Tubo Joelho' (ID: ID_9) Qtd: 233 Preço: 5.0 → 'Tubo Joelho' Qtd: 43 Preço: 5.0
+[23:41:25] ➕ Adicionado 'Gugu' (ID: ID_14) com 1 unidades, Preço: 9999.0
+[23:42:06] ➕ Adicionado 'maquita' (ID: ID_15) com 13 unidades, Preço: 2500.0
+[23:49:07] ⬆️ Adicionado +1 em 'Betoneira' (ID: ID_2) → total 4
+[23:49:08] ⬆️ Adicionado +1 em 'Betoneira' (ID: ID_2) → total 5
+[23:51:17] ➖ Removido 'Gugu' (ID: ID_14) - Movido para Removidos
+[23:51:22] ⬆️ Adicionado +1 em 'cano Iuva' (ID: ID_8) → total 23
+[23:51:24] ➖ Removido 'maquita' (ID: ID_15) - Movido para Removidos
