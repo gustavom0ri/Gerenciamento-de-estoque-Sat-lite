@@ -77,3 +77,15 @@
 [23:16:49] ↪️ Refeita a ação desfeita
 [23:16:56] 🔄 Restaurado 'Cano T' (ID: ID_13) dos Removidos
 [23:17:03] ⬆️ Adicionado +1 em 'Cano T' (ID: ID_13) → total 4
+[17:46:02] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_6) → total 20
+[17:46:09] ⬆️ Adicionado +10 em 'Cano y' (ID: ID_6) → total 30
+[17:57:52] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_6) → total 31
+[17:57:54] ⬆️ Adicionado +1 em 'Cano y' (ID: ID_6) → total 32
+[19:51:29] ⬆️ Adicionado +1 em 'Cano i' (ID: ID_1) → total 35
+[19:58:09] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 10
+[19:58:10] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 11
+[19:58:11] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 12
+[19:58:11] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 13
+[19:58:12] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 14
+[19:58:13] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 15
+[19:58:14] ⬆️ Adicionado +1 em 'Cabi Y' (ID: ID_14) → total 16

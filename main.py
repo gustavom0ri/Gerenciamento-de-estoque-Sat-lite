@@ -17,6 +17,7 @@ painel_aberto = False
 undo_stack = []
 redo_stack = []
 ultima_data_registrada = None  # Nova variável para rastrear a data da última ação
+updating = False
 
 PASTA_IMAGENS = "imagens_estoque"
 CAMINHO_HISTORICO = "historico.txt"  # Arquivo fixo para o histórico
@@ -29,7 +30,22 @@ TAMANHO_CARD = 250
 root = tk.Tk()
 root.title("Sistema de Estoque Satelite")
 root.state("zoomed")
+root.update()  # Forçar atualização para obter tamanho inicial
 
+# ---- FUNÇÕES AUXILIARES ----
+def create_padded_photoimage(image_path, size, bg_color=(44, 44, 44)):
+    if not os.path.exists(image_path):
+        return None
+    try:
+        img = Image.open(image_path)
+        img.thumbnail(size)
+        new_img = Image.new("RGB", size, bg_color)
+        offset = ((size[0] - img.width) // 2, (size[1] - img.height) // 2)
+        new_img.paste(img, offset)
+        return ImageTk.PhotoImage(new_img)
+    except Exception as e:
+        print(f"Erro ao criar imagem padded: {e}")
+        return None
 
 # ---- BANCO DE DADOS ----
 def salvar_no_excel():
@@ -80,27 +96,24 @@ def carregar_do_excel():
             if 'Estoque' in xls.sheet_names:
                 df_estoque = pd.read_excel(xls, 'Estoque')
                 print(f"Carregando {len(df_estoque)} itens da aba 'Estoque'...")
+                seen_ids = set()
                 for _, row in df_estoque.iterrows():
-                    nome_arquivo = f"{row['Nome']}_{row.get('Id', 'default')}.jpg"
+                    item_id = str(row.get("Id", f"ID_{len(estoque) + 1}"))
+                    if item_id in seen_ids:
+                        print(f"Duplicado detectado: ID {item_id}, pulando.")
+                        continue
+                    seen_ids.add(item_id)
+                    nome_arquivo = f"{row['Nome']}_{item_id}.jpg"
                     caminho_imagem = os.path.join(PASTA_IMAGENS, nome_arquivo)
-
-                    imagem = None
-                    if os.path.exists(caminho_imagem):
-                        try:
-                            img = Image.open(caminho_imagem)
-                            img.thumbnail((TAMANHO_CARD - 20, TAMANHO_CARD - 100))
-                            imagem = ImageTk.PhotoImage(img)
-                            print(f"Imagem carregada: {caminho_imagem}")
-                        except Exception as e:
-                            print(f"Erro ao carregar imagem {caminho_imagem}: {e}")
+                    image_path = caminho_imagem if os.path.exists(caminho_imagem) else None
 
                     item = {
-                        "imagem": imagem,
+                        "image_path": image_path,
                         "nome": str(row["Nome"]),
                         "quantidade": int(row["Quantidade"]),
                         "var_esq": tk.IntVar(value=1),
                         "var_dir": tk.IntVar(value=1),
-                        "id": str(row.get("Id", f"ID_{len(estoque) + 1}")),
+                        "id": item_id,
                         "data_criacao": str(
                             row.get("Data_Criacao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))),
                         "data_alteracao": str(
@@ -139,10 +152,8 @@ def salvar_imagem(caminho_original, nome_item, item_id):
 
     try:
         shutil.copy2(caminho_original, caminho_destino)
-        img = Image.open(caminho_destino)
-        img.thumbnail((TAMANHO_CARD - 20, TAMANHO_CARD - 100))
         print(f"Imagem salva: {caminho_destino}")
-        return ImageTk.PhotoImage(img)
+        return caminho_destino
     except Exception as e:
         print(f"Erro ao salvar imagem: {e}")
         return None
@@ -177,18 +188,10 @@ def recarregar_imagens_estoque(estoque_dados):
     for item_data in estoque_dados:
         nome_arquivo = f"{item_data['nome']}_{item_data['id']}.jpg"
         caminho_imagem = os.path.join(PASTA_IMAGENS, nome_arquivo)
-
-        imagem = None
-        if os.path.exists(caminho_imagem):
-            try:
-                img = Image.open(caminho_imagem)
-                img.thumbnail((TAMANHO_CARD - 20, TAMANHO_CARD - 100))
-                imagem = ImageTk.PhotoImage(img)
-            except Exception:
-                pass
+        image_path = caminho_imagem if os.path.exists(caminho_imagem) else None
 
         item = {
-            "imagem": imagem,
+            "image_path": image_path,
             "nome": item_data['nome'],
             "quantidade": item_data['quantidade'],
             "var_esq": tk.IntVar(value=1),
@@ -445,13 +448,12 @@ def adicionar_item():
     item_id = f"ID_{len(estoque) + 1}"
     data_agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    imagem_tk = salvar_imagem(caminho_imagem, nome, item_id)
-    if not imagem_tk:
+    image_path = salvar_imagem(caminho_imagem, nome, item_id)
+    if not image_path:
         messagebox.showerror("Erro", "Falha ao processar a imagem!")
-        return
 
     item = {
-        "imagem": imagem_tk,
+        "image_path": image_path,
         "nome": nome,
         "quantidade": quantidade,
         "var_esq": tk.IntVar(value=1),
@@ -464,6 +466,36 @@ def adicionar_item():
     salvar_no_excel()
     registrar_historico(f"➕ Adicionado '{nome}' (ID: {item_id}) com {quantidade} unidades")
     atualizar_tela()
+
+
+def alterar_imagem(item):
+    caminho_imagem = filedialog.askopenfilename(
+        title="Escolha a nova foto do item",
+        filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")],
+        parent=root
+    )
+    if not caminho_imagem:
+        return
+
+    salvar_estado()
+
+    # Remover imagem antiga se existir
+    if item.get("image_path") and os.path.exists(item["image_path"]):
+        try:
+            os.remove(item["image_path"])
+            print(f"Imagem antiga removida: {item['image_path']}")
+        except Exception as e:
+            print(f"Erro ao remover imagem antiga: {e}")
+
+    new_path = salvar_imagem(caminho_imagem, item["nome"], item["id"])
+    if new_path:
+        item["image_path"] = new_path
+        item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        salvar_no_excel()
+        registrar_historico(f"🖼️ Imagem alterada para '{item['nome']}' (ID: {item['id']})")
+        atualizar_tela()
+    else:
+        messagebox.showerror("Erro", "Falha ao alterar a imagem!")
 
 
 def remover_item():
@@ -526,17 +558,10 @@ def restaurar_item():
 
         nome_arquivo = f"{item_restaurar['nome']}_{item_restaurar['id']}.jpg"
         caminho_imagem = os.path.join(PASTA_IMAGENS, nome_arquivo)
-        imagem = None
-        if os.path.exists(caminho_imagem):
-            try:
-                img = Image.open(caminho_imagem)
-                img.thumbnail((TAMANHO_CARD - 20, TAMANHO_CARD - 100))
-                imagem = ImageTk.PhotoImage(img)
-            except Exception:
-                pass
+        image_path = caminho_imagem if os.path.exists(caminho_imagem) else None
 
         novo_item = {
-            "imagem": imagem,
+            "image_path": image_path,
             "nome": item_restaurar["nome"],
             "quantidade": item_restaurar["quantidade"],
             "var_esq": tk.IntVar(value=1),
@@ -622,22 +647,25 @@ def editar_item():
         item_selecionado["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
         if novo_nome != nome_antigo:
-            nome_arquivo_antigo = f"{nome_antigo}_{id_item}.jpg"
-            nome_arquivo_novo = f"{novo_nome}_{id_item}.jpg"
-            caminho_antigo = os.path.join(PASTA_IMAGENS, nome_arquivo_antigo)
-            caminho_novo = os.path.join(PASTA_IMAGENS, nome_arquivo_novo)
-
-            if os.path.exists(caminho_antigo):
-                try:
-                    shutil.move(caminho_antigo, caminho_novo)
-                    img = Image.open(caminho_novo)
-                    img.thumbnail((TAMANHO_CARD - 20, TAMANHO_CARD - 100))
-                    item_selecionado["imagem"] = ImageTk.PhotoImage(img)
-                except Exception:
-                    pass
+            if item_selecionado.get("image_path"):
+                caminho_antigo = item_selecionado["image_path"]
+                nome_arquivo_novo = f"{novo_nome}_{id_item}.jpg"
+                caminho_novo = os.path.join(PASTA_IMAGENS, nome_arquivo_novo)
+                if os.path.exists(caminho_antigo):
+                    try:
+                        shutil.move(caminho_antigo, caminho_novo)
+                        item_selecionado["image_path"] = caminho_novo
+                    except Exception as e:
+                        print(f"Erro ao renomear imagem: {e}")
 
         salvar_no_excel()
         registrar_historico(f"✏️ Editado '{nome_antigo}' (ID: {id_item}) ({qtd_antiga}) → '{novo_nome}' ({nova_qtd})")
+
+        # Perguntar se deseja alterar a imagem
+        change_img = messagebox.askyesno("Alterar Imagem", "Deseja alterar a imagem do item?")
+        if change_img:
+            alterar_imagem(item_selecionado)
+
         atualizar_tela()
 
 
@@ -775,143 +803,260 @@ def exportar_estoque():
     tk.Button(menu, text="📄 PDF (.pdf)", width=25, command=salvar_pdf).pack(pady=10)
 
 
+# ---- Layout Dinâmico ----
+MIN_CARD_WIDTH = 300
+MAX_CARD_WIDTH = 400
+CARD_PADDING = 20  # Padding total aproximado por card (padx=10 em cada lado)
+
+def compute_layout(largura_disponivel):
+    num_cols = 0
+    for cols in range(1, 20):  # Limite arbitrário
+        required = cols * (MIN_CARD_WIDTH + CARD_PADDING)
+        if required <= largura_disponivel:
+            num_cols = cols
+        else:
+            break
+    if num_cols == 0:
+        num_cols = 1
+    card_width = (largura_disponivel - num_cols * CARD_PADDING) // num_cols
+    card_width = max(MIN_CARD_WIDTH, min(MAX_CARD_WIDTH, card_width))
+    use_list = (num_cols == 1)
+    return num_cols, card_width, use_list
+
+
+pending_adjust = None
+prev_width = 0
+
+def ajustar_modo_visualizacao(event=None):
+    global pending_adjust, prev_width
+    def do_adjust():
+        global pending_adjust, prev_width
+        pending_adjust = None
+        largura_disponivel = frame_conteudo.winfo_width() or root.winfo_width()
+        if painel_aberto:
+            largura_disponivel -= 300
+        if abs(largura_disponivel - prev_width) > 50:
+            prev_width = largura_disponivel
+            atualizar_tela()
+
+    if pending_adjust:
+        root.after_cancel(pending_adjust)
+    pending_adjust = root.after(500, do_adjust)
+
+
 def atualizar_tela():
-    global item_selecionado
+    global updating, item_selecionado, TAMANHO_CARD
+    if updating:
+        return
+    updating = True
+
     print("Atualizando tela...")
-    for widget in scroll_frame.winfo_children():
-        widget.destroy()
+    try:
+        for widget in scroll_frame.winfo_children():
+            widget.destroy()
+    except Exception as e:
+        print(f"Erro ao destruir widgets antigos: {e}")
 
     if not estoque:
         print("Estoque vazio, exibindo mensagem de estoque vazio.")
-        label_vazio = tk.Label(
-            scroll_frame,
-            text="📦 Estoque vazio\nClique em 'Adicionar' para começar",
-            font=("Arial", 16),
-            fg="#888",
-            bg="#111"
-        )
-        label_vazio.pack(expand=True, fill="both")
-        conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
+        try:
+            label_vazio = tk.Label(
+                scroll_frame,
+                text="📦 Estoque vazio\nClique em 'Adicionar' para começar",
+                font=("Arial", 16),
+                fg="#888",
+                bg="#111"
+            )
+            label_vazio.pack(expand=True, fill="both")
+            conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
+        except Exception as e:
+            print(f"Erro ao criar label de estoque vazio: {e}")
+        updating = False
         return
 
-    num_itens_por_linha = 4 if painel_aberto else 5
-    print(f"Painel histórico aberto: {painel_aberto}, Itens por linha: {num_itens_por_linha}")
-
-    largura_janela = frame_conteudo.winfo_width() or root.winfo_width()
+    largura_disponivel = frame_conteudo.winfo_width() or root.winfo_width()
     if painel_aberto:
-        largura_janela -= 300  # Subtrai a largura do painel de histórico
-    largura_item = largura_janela // num_itens_por_linha
+        largura_disponivel -= 300
+    num_columns, card_width, use_list = compute_layout(largura_disponivel)
+    TAMANHO_CARD = card_width
 
-    row = 0
-    col = 0
-    for item in estoque:
-        print(f"Renderizando item: {item['nome']} (ID: {item['id']})")
-        frame_principal = tk.Frame(scroll_frame, width=largura_item, height=TAMANHO_CARD + 50, bg="#111")
-        frame_principal.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-        frame_principal.grid_propagate(False)
+    print(f"Layout: num_columns={num_columns}, card_width={card_width}, use_list={use_list}")
 
-        cor_card = "#2c2c2c"
-        if item_selecionado == item:
-            cor_card = "#4444aa"
+    if use_list:
+        for item in estoque:
+            try:
+                print(f"Renderizando item: {item['nome']} (ID: {item['id']})")
+                frame_item = tk.Frame(scroll_frame, bg="#2c2c2c", bd=1, relief="ridge")
+                frame_item.pack(fill="x", pady=5, padx=10)
 
-        frame_item = tk.Frame(frame_principal, bg=cor_card, bd=3, relief="ridge")
-        frame_item.pack(expand=True, fill="both", padx=5, pady=5)
+                # Thumbnail pequeno à esquerda ou botão se sem imagem
+                image_path = item.get("image_path")
+                if image_path and os.path.exists(image_path):
+                    imagem = create_padded_photoimage(image_path, (50, 50))
+                    if imagem:
+                        lbl_img = tk.Label(frame_item, image=imagem, bg="#2c2c2c")
+                        lbl_img.image = imagem
+                        lbl_img.pack(side="left", padx=10, pady=5)
+                else:
+                    btn_add_img = tk.Button(frame_item, text="Add Img", command=lambda i=item: alterar_imagem(i), bg="#555", fg="white")
+                    btn_add_img.pack(side="left", padx=10, pady=5)
 
-        if item.get("imagem"):
-            lbl_img = tk.Label(frame_item, image=item["imagem"], bg=cor_card)
-            lbl_img.image = item["imagem"]
-            lbl_img.pack(pady=5)
+                texto = f"{item['id']} - {item['nome']} (Qtd: {item['quantidade']}) "
+                lbl = tk.Label(frame_item, text=texto, font=("Arial", 12), fg="white", bg="#2c2c2c", anchor="w", wraplength=largura_disponivel - 150)
+                lbl.pack(side="left", fill="x", expand=True, padx=10, pady=5)
 
-        lbl_nome = tk.Label(
-            frame_item,
-            text=f"{item['id']}\n{item['nome']}",
-            font=("Arial", 10, "bold"),
-            fg="#00d4ff",
-            bg=cor_card,
-            justify="center"
-        )
-        lbl_nome.pack(pady=2)
+                frame_botoes = tk.Frame(frame_item, bg="#2c2c2c")
+                frame_botoes.pack(fill="x", pady=5, padx=10)
 
-        lbl_qtd = tk.Label(
-            frame_item,
-            text=f"Qtd: {item['quantidade']}",
-            font=("Arial", 11, "bold"),
-            fg="white",
-            bg="#28a745" if item["quantidade"] > 0 else "#dc3545",
-            padx=5,
-            pady=3
-        )
-        lbl_qtd.pack(pady=2)
+                btn_sub = tk.Button(frame_botoes, text="➖", command=lambda i=item: subtrair_quantidade(i), bg="#dc3545", fg="white")
+                btn_sub.pack(side="left", padx=5)
 
-        frame_botoes = tk.Frame(frame_item, bg=cor_card)
-        frame_botoes.pack(fill="x", pady=10)
+                entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=5)
+                entry_sub.pack(side="left", padx=5)
 
-        entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=6, justify="center", font=("Arial", 12))
-        entry_sub.pack(side="left", padx=5)
+                btn_add = tk.Button(frame_botoes, text="➕", command=lambda i=item: adicionar_quantidade(i), bg="#28a745", fg="white")
+                btn_add.pack(side="left", padx=5)
 
-        btn_sub = tk.Button(
-            frame_botoes,
-            text="➖",
-            font=("Arial", 16, "bold"),
-            bg="#dc3545",
-            fg="white",
-            activebackground="#a71d2a",
-            activeforeground="white",
-            command=lambda i=item: subtrair_quantidade(i),
-            relief="flat",
-            width=5,
-            height=1
-        )
-        btn_sub.pack(side="left", padx=10)
+                entry_add = tk.Entry(frame_botoes, textvariable=item["var_dir"], width=5)
+                entry_add.pack(side="left", padx=5)
 
-        btn_add = tk.Button(
-            frame_botoes,
-            text="➕",
-            font=("Arial", 16, "bold"),
-            bg="#28a745",
-            fg="white",
-            activebackground="#1e7e34",
-            activeforeground="white",
-            command=lambda i=item: adicionar_quantidade(i),
-            relief="flat",
-            width=5,
-            height=1
-        )
-        btn_add.pack(side="left", padx=10)
+                def on_click(i=item):
+                    selecionar_item(i)
 
-        entry_add = tk.Entry(frame_botoes, textvariable=item["var_dir"], width=6, justify="center", font=("Arial", 12))
-        entry_add.pack(side="left", padx=5)
+                frame_item.bind("<Button-1>", lambda e, i=item: on_click(i))
+                for child in frame_item.winfo_children():
+                    child.bind("<Button-1>", lambda e, i=item: on_click(i))
+            except Exception as e:
+                print(f"Erro ao renderizar item {item.get('nome', 'Desconhecido')} (ID: {item.get('id', 'N/A')}): {e}")
+                continue
+    else:
+        row = 0
+        col = 0
+        largura_item = largura_disponivel // num_columns
+        for item in estoque:
+            try:
+                print(f"Renderizando item: {item['nome']} (ID: {item['id']})")
+                frame_principal = tk.Frame(scroll_frame, width=largura_item, height=TAMANHO_CARD + 50, bg="#111")
+                frame_principal.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+                frame_principal.grid_propagate(False)
 
-        lbl_datas = tk.Label(
-            frame_item,
-            text=f"Criado: {item['data_criacao'][:10]}",
-            font=("Arial", 8),
-            fg="#888",
-            bg=cor_card,
-            justify="center"
-        )
-        lbl_datas.pack(pady=5)
+                cor_card = "#2c2c2c"
+                if item_selecionado == item:
+                    cor_card = "#4444aa"
 
-        def on_click(i=item):
-            selecionar_item(i)
+                frame_item = tk.Frame(frame_principal, bg=cor_card, bd=3, relief="ridge")
+                frame_item.pack(expand=True, fill="both", padx=5, pady=5)
 
-        frame_item.bind("<Button-1>", lambda e, i=item: on_click(i))
-        for child in frame_item.winfo_children():
-            child.bind("<Button-1>", lambda e, i=item: on_click(i))
+                image_path = item.get("image_path")
+                if image_path and os.path.exists(image_path):
+                    size = (TAMANHO_CARD - 20, TAMANHO_CARD - 100)
+                    imagem = create_padded_photoimage(image_path, size)
+                    if imagem:
+                        lbl_img = tk.Label(frame_item, image=imagem, bg=cor_card)
+                        lbl_img.image = imagem
+                        lbl_img.pack(pady=5)
+                else:
+                    btn_add_img = tk.Button(frame_item, text="Adicionar Imagem", command=lambda i=item: alterar_imagem(i), bg="#555", fg="white")
+                    btn_add_img.pack(pady=5)
 
-        col += 1
-        if col >= num_itens_por_linha:
-            col = 0
-            row += 1
+                lbl_nome = tk.Label(
+                    frame_item,
+                    text=f"{item['id']}\n{item['nome']}",
+                    font=("Arial", 10, "bold"),
+                    fg="#00d4ff",
+                    bg=cor_card,
+                    justify="center",
+                    wraplength=TAMANHO_CARD - 20
+                )
+                lbl_nome.pack(pady=2)
 
-    for c in range(num_itens_por_linha):
-        scroll_frame.grid_columnconfigure(c, weight=1)
-    for r in range(row + 1):
-        scroll_frame.grid_rowconfigure(r, weight=1)
+                lbl_qtd = tk.Label(
+                    frame_item,
+                    text=f"Qtd: {item['quantidade']}",
+                    font=("Arial", 11, "bold"),
+                    fg="white",
+                    bg="#28a745" if item["quantidade"] > 0 else "#dc3545",
+                    padx=5,
+                    pady=3
+                )
+                lbl_qtd.pack(pady=2)
 
-    scroll_frame.update_idletasks()
-    conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
+                frame_botoes = tk.Frame(frame_item, bg=cor_card)
+                frame_botoes.pack(pady=5, anchor="center")
+
+                entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=4, justify="center", font=("Arial", 10))
+                entry_sub.pack(side="left", padx=2)
+
+                btn_sub = tk.Button(
+                    frame_botoes,
+                    text="➖",
+                    font=("Arial", 12, "bold"),
+                    bg="#dc3545",
+                    fg="white",
+                    activebackground="#a71d2a",
+                    activeforeground="white",
+                    command=lambda i=item: subtrair_quantidade(i),
+                    relief="flat",
+                    width=3,
+                    height=1
+                )
+                btn_sub.pack(side="left", padx=2)
+
+                btn_add = tk.Button(
+                    frame_botoes,
+                    text="➕",
+                    font=("Arial", 12, "bold"),
+                    bg="#28a745",
+                    fg="white",
+                    activebackground="#1e7e34",
+                    activeforeground="white",
+                    command=lambda i=item: adicionar_quantidade(i),
+                    relief="flat",
+                    width=3,
+                    height=1
+                )
+                btn_add.pack(side="left", padx=2)
+
+                entry_add = tk.Entry(frame_botoes, textvariable=item["var_dir"], width=4, justify="center", font=("Arial", 10))
+                entry_add.pack(side="left", padx=2)
+
+                lbl_datas = tk.Label(
+                    frame_item,
+                    text=f"Criado: {item['data_criacao'][:10]}",
+                    font=("Arial", 8),
+                    fg="#888",
+                    bg=cor_card,
+                    justify="center"
+                )
+                lbl_datas.pack(pady=2)
+
+                def on_click(i=item):
+                    selecionar_item(i)
+
+                frame_item.bind("<Button-1>", lambda e, i=item: on_click(i))
+                for child in frame_item.winfo_children():
+                    child.bind("<Button-1>", lambda e, i=item: on_click(i))
+
+                col += 1
+                if col >= num_columns:
+                    col = 0
+                    row += 1
+            except Exception as e:
+                print(f"Erro ao renderizar item {item.get('nome', 'Desconhecido')} (ID: {item.get('id', 'N/A')}): {e}")
+                continue
+
+        for c in range(num_columns):
+            scroll_frame.grid_columnconfigure(c, weight=1)
+        for r in range(row + 1):
+            scroll_frame.grid_rowconfigure(r, weight=1)
+
+    try:
+        scroll_frame.update_idletasks()
+        conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
+    except Exception as e:
+        print(f"Erro ao configurar scrollregion: {e}")
     print("Tela atualizada com sucesso.")
+    updating = False
 
 
 def abrir_excel():
@@ -933,7 +1078,7 @@ def estilo_botao(master, texto, comando, cor_fundo, cor_hover, lado):
     btn = tk.Button(
         master,
         text=texto,
-        font=("Arial", 16, "bold"),
+        font=("Arial", 12, "bold"),  # Reduzido de 16 para 12
         bg=cor_fundo,
         fg="white",
         activebackground=cor_hover,
@@ -941,11 +1086,11 @@ def estilo_botao(master, texto, comando, cor_fundo, cor_hover, lado):
         command=comando,
         relief="flat",
         bd=0,
-        padx=15,
-        pady=8,
+        padx=8,  # Reduzido de 15 para 8
+        pady=4,  # Reduzido de 8 para 4
         highlightthickness=0
     )
-    btn.pack(side=lado, padx=10, pady=10)
+    btn.pack(side=lado, padx=5, pady=5)  # Reduzido padx e pady de 10 para 5
 
     def on_enter(e): btn.config(bg=cor_hover)
 
@@ -956,6 +1101,7 @@ def estilo_botao(master, texto, comando, cor_fundo, cor_hover, lado):
     return btn
 
 
+# Atualização dos botões com a nova função estilo_botao
 btn_adicionar = estilo_botao(barra_botoes, "➕ Adicionar", adicionar_item, cor_fundo="#28a745", cor_hover="#218838",
                              lado="left")
 btn_remover = estilo_botao(barra_botoes, "➖ Remover", remover_item, cor_fundo="#dc3545", cor_hover="#c82333",
@@ -996,7 +1142,7 @@ conteudo_canvas.bind("<MouseWheel>", _on_mousewheel_itens)
 scroll_frame.bind("<MouseWheel>", _on_mousewheel_itens)
 frame_conteudo.bind("<MouseWheel>", _on_mousewheel_itens)
 
-scroll_frame.bind("<Configure>", lambda e: conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all")))
+# Removido o bind <Configure> no scroll_frame para evitar loops
 
 painel_historico = tk.Frame(container_principal, bg="#222", width=300)
 
@@ -1004,9 +1150,13 @@ root.bind("<Control-z>", undo)
 root.bind("<Control-Shift-z>", redo)
 root.focus_set()
 
+# Bind para redimensionamento da janela
+root.bind("<Configure>", ajustar_modo_visualizacao)
+
 # ---- INICIALIZAÇÃO ----
 print("Iniciando programa...")
 carregar_do_excel()
+ajustar_modo_visualizacao()
 atualizar_tela()
 print("Programa iniciado.")
 root.mainloop()
