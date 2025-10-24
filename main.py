@@ -407,7 +407,7 @@ def open_password_form(action_title):
 
     topo = tk.Toplevel(root)
     topo.title("Autenticação")
-    topo.geometry("300x200")
+    topo.geometry("400x250")
     topo.configure(bg="#2c2c2c")
     topo.update_idletasks()
     x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
@@ -421,7 +421,7 @@ def open_password_form(action_title):
 
     tk.Label(frame_form, text=f"Senha para {action_title}", font=("Arial", 16, "bold"), bg="#2c2c2c", fg="#00d4ff").pack(pady=10)
 
-    entry_senha = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white", show="*")
+    entry_senha = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white", show="*", width=30)
     entry_senha.pack(fill="x", pady=5)
     entry_senha.focus_set()
 
@@ -484,22 +484,29 @@ def open_item_form(item=None):
 
     tk.Label(frame_form, text="Imagem:", font=("Arial", 12), bg="#2c2c2c", fg="white").pack(anchor="w", pady=(10,0))
     frame_imagem = tk.Frame(frame_form, bg="#2c2c2c")
-    frame_imagem.pack(fill="x", pady=5)
+    frame_imagem.pack(fill="both", pady=10)
 
     image_path_var = tk.StringVar(value=item.get("image_path", "") if is_edit else "")
     lbl_imagem = tk.Label(frame_imagem, bg="#444")
-    lbl_imagem.pack(side="left", padx=5, fill="both", expand=True)
+    lbl_imagem.pack(side="left", padx=10, pady=10, fill="both", expand=True)
 
     def update_image_preview(path):
+        print(f"Atualizando visualização da imagem: {path}")  # Debug
         if path and os.path.exists(path):
-            img = Image.open(path)
-            max_width = 300
-            img.thumbnail((max_width, max_width * img.size[1] // img.size[0]))
-            photo = ImageTk.PhotoImage(img)
-            lbl_imagem.config(image=photo)
-            lbl_imagem.image = photo
+            try:
+                img = Image.open(path)
+                max_width = 300
+                img.thumbnail((max_width, max_width * img.size[1] // img.size[0]), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                lbl_imagem.config(image=photo)
+                lbl_imagem.image = photo
+                print("Imagem de visualização atualizada com sucesso")
+            except Exception as e:
+                print(f"Erro ao carregar imagem de visualização: {e}")
+                lbl_imagem.config(image=None)
         else:
             lbl_imagem.config(image=None)
+            print("Nenhuma imagem válida para exibir")
 
     if is_edit and item.get("image_path"):
         update_image_preview(item["image_path"])
@@ -511,11 +518,25 @@ def open_item_form(item=None):
             parent=topo
         )
         if caminho:
+            print(f"Imagem selecionada: {caminho}")  # Debug
             image_path_var.set(caminho)
             update_image_preview(caminho)
 
-    btn_selecionar = tk.Button(frame_imagem, text="Selecionar Imagem", command=selecionar_imagem, bg="#17a2b8", fg="white", font=("Arial", 10))
-    btn_selecionar.pack(side="left", padx=5)
+    btn_selecionar = tk.Button(
+        frame_imagem,
+        text="Selecionar Imagem",
+        command=selecionar_imagem,
+        bg="#17a2b8",
+        fg="white",
+        font=("Arial", 14, "bold"),
+        padx=15,
+        pady=10,
+        relief="raised",
+        activebackground="#138496",
+        activeforeground="white"
+    )
+    btn_selecionar.pack(side="left", padx=10, pady=10)
+    print("Botão Selecionar Imagem criado e empacotado")  # Debug
 
     frame_botoes = tk.Frame(frame_form, bg="#2c2c2c")
     frame_botoes.pack(pady=20)
@@ -610,13 +631,13 @@ def open_item_form(item=None):
 
     topo.bind("<Return>", lambda e: confirmar())
 
-    # Centralizar a janela após configurar todos os widgets
     topo.update_idletasks()
-    width = 500
+    width = 600
     height = 800
     x = (root.winfo_screenwidth() - width) // 2
-    y = (root.winfo_screenheight() - height) // 2
+    y = (root.winfo_screenheight) - height // 2
     topo.geometry(f"{width}x{height}+{x}+{y}")
+    topo.update_idletasks()
 
 def adicionar_item():
     if not open_password_form("Adicionar Item"):

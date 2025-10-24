@@ -141,3 +141,21 @@
 [23:51:17] ➖ Removido 'Gugu' (ID: ID_14) - Movido para Removidos
 [23:51:22] ⬆️ Adicionado +1 em 'cano Iuva' (ID: ID_8) → total 23
 [23:51:24] ➖ Removido 'maquita' (ID: ID_15) - Movido para Removidos
+[22:56:30] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 23 Preço: 9.47 → 'cano Iuva' Qtd: 23 Preço: 9.47
+[22:56:32] ↩️ Desfeita a última ação
+[23:04:47] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 23 Preço: 9.47 → 'cano Iuva' Qtd: 23 Preço: 9.47
+[23:04:49] ↩️ Desfeita a última ação
+[23:12:41] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 23 Preço: 9.47 → 'cano Iuva' Qtd: 23 Preço: 9.47
+[23:12:44] ↩️ Desfeita a última ação
+[23:13:07] ↪️ Refeita a ação desfeita
+[23:13:11] ↩️ Desfeita a última ação
+[23:13:11] ↪️ Refeita a ação desfeita
+[23:13:12] ↩️ Desfeita a última ação
+[23:13:13] ↪️ Refeita a ação desfeita
+[23:13:14] ↩️ Desfeita a última ação
+[23:18:12] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 23 Preço: 9.47 → 'cano Iuva' Qtd: 23 Preço: 9.47
+[23:18:15] ↩️ Desfeita a última ação
+[23:18:23] ✏️ Editado 'cano Iuva' (ID: ID_8) Qtd: 23 Preço: 9.47 → 'cano Iuva' Qtd: 23 Preço: 9.47
+[23:32:04] 🔄 Restaurado 'Cano novo' (ID: ID_15) dos Removidos
+[23:32:19] ➖ Removido 'Cano novo' (ID: ID_15) - Movido para Removidos
+[23:59:53] ➕ Adicionado 'gugu' (ID: ID_14) com 1 unidades, Preço: 12.0
