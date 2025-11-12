@@ -159,3 +159,62 @@
 [23:32:04] 🔄 Restaurado 'Cano novo' (ID: ID_15) dos Removidos
 [23:32:19] ➖ Removido 'Cano novo' (ID: ID_15) - Movido para Removidos
 [23:59:53] ➕ Adicionado 'gugu' (ID: ID_14) com 1 unidades, Preço: 12.0
+[20:11:31] 📂 Adicionada nova categoria 'cimento'
+[20:12:00] ➕ Adicionado 'cimento 20 kg' (ID: ID_15) com 15 unidades, Preço: 13.0, Categoria: cimento
+[20:12:08] ↩️ Desfeita a última ação
+[20:12:09] ↪️ Refeita a ação desfeita
+[20:21:15] ➕ Adicionado 'da' (ID: ID_16) com 1 unidades, Preço: None, Categoria: cimento
+[20:52:47] Editado 'cimento 20kg' (ID: ID_7)
+[20:57:00] Removido 'da' (ID:ID_16) → Removidos
+[20:57:04] Desfeita a última ação
+[20:57:05] Refeita a ação desfeita
+[20:57:31] Adicionada categoria 'bucha'
+[21:02:26] Adicionado 'bucha 6mm' (ID:ID_17) Qtd:1
+[21:02:36] Adicionada categoria 'bucha'
+[21:02:39] Editado 'bucha 6mm' (ID:ID_17) Qtd:1 → 'bucha 6mm' Qtd:1
+[21:03:31] Editado 'da' (ID:ID_16) Qtd:1 → 'da' Qtd:1
+[21:03:38] Editado 'da' (ID:ID_16) Qtd:1 → 'da' Qtd:1
+[21:13:16] Adicionado 'guug' (ID:ID_17)
+[21:13:19] Adicionado 'guug' (ID:ID_18)
+[21:13:19] Adicionado 'guug' (ID:ID_19)
+[21:13:20] Adicionado 'guug' (ID:ID_20)
+[21:13:20] Adicionado 'guug' (ID:ID_21)
+[21:13:20] Adicionado 'guug' (ID:ID_22)
+[21:13:20] Adicionado 'guug' (ID:ID_23)
+[21:17:29] Removido 'da' (ID:ID_16)
+[21:18:05] Adicionada categoria 'bucha'
+[21:21:15] Editado 'Bucha 12 mm' → 'Bucha 12 mm' (ID:ID_3)
+[21:21:23] Editado 'bucha 6mm' → 'bucha 6mm' (ID:ID_4)
+[21:21:30] Editado 'Bucha 8mm' → 'Bucha 8mm' (ID:ID_5)
+[21:21:37] Editado 'buxa 10mm' → 'buxa 10mm' (ID:ID_6)
+[21:21:43] Editado 'Bucha 12 mm' → 'Bucha 12 mm' (ID:ID_3)
+[21:21:52] Removido 'cimento 20kg' (ID:ID_7)
+[21:21:59] Adicionada categoria 'canos'
+[21:22:02] Editado 'cano Iuva' → 'cano Iuva' (ID:ID_8)
+[21:22:08] Editado 'Tubo Joelho' → 'Tubo Joelho' (ID:ID_9)
+[21:22:13] Editado 'Tubo tee' → 'Tubo tee' (ID:ID_10)
+[21:22:25] Editado 'tubo y' → 'tubo y' (ID:ID_11)
+[21:22:50] Editado 'Argamassa 20kg' → 'Argamassa 20kg' (ID:ID_1)
+[21:23:17] Adicionada categoria 'parafusos'
+[21:23:19] Editado 'parafuso 6mm' → 'parafuso 6mm' (ID:ID_12)
+[21:23:37] Adicionada categoria 'prego'
+[21:23:39] Editado 'Prego' → 'Prego' (ID:ID_13)
+[21:23:45] Removido 'gugu' (ID:ID_14)
+[21:24:27] Adicionada categoria 'maquinas'
+[21:24:28] Editado 'Betoneira' → 'Betoneira' (ID:ID_2)
+[21:35:54] Adicionado 'maquita' (ID:ID_14)
+[21:37:18] Adicionada categoria 'gugu'
+[21:37:30] Adicionado 'gugu' (ID:ID_15)
+[21:37:57] +1 em 'gugu' → 2
+[21:37:58] +1 em 'gugu' → 3
+[21:37:59] -1 de 'gugu' → 2
+[21:38:00] -1 de 'gugu' → 1
+[21:38:10] Removido 'gugu' (ID:ID_15)
+[21:38:32] Restaurado 'gugu' (ID:ID_15)
+[21:38:36] +1 em 'gugu' → 2
+[21:38:36] +1 em 'gugu' → 3
+[21:38:37] Desfeita a última ação
+[21:38:38] Desfeita a última ação
+[21:38:40] +1 em 'gugu' → 2
+[21:38:41] Desfeita a última ação
+[21:38:45] Refeita a ação desfeita

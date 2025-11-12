@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import simpledialog, filedialog, messagebox
+from tkinter.ttk import Combobox
 from PIL import Image, ImageTk
 import datetime
 import pandas as pd
@@ -9,31 +10,44 @@ from reportlab.pdfgen import canvas
 import shutil
 import copy
 import time
+from collections import defaultdict
 
+# --------------------------  CONFIGURAÇÕES GLOBAIS  --------------------------
 estoque = []
 removidos = []
 item_selecionado = None
 historico = []
 painel_aberto = False
+painel_minimizado = False
 undo_stack = []
 redo_stack = []
 ultima_data_registrada = None
 updating = False
 last_successful_auth = 0
+categorias = ["Sem Categoria"]
+categoria_aberta = {}
 
 PASTA_IMAGENS = "imagens_estoque"
 CAMINHO_HISTORICO = "historico.txt"
+CAMINHO_DB = "estoque.xlsx"
+CAMINHO_TEMP = "estoque_temp.xlsx"
+TAMANHO_CARD = 250
+
 if not os.path.exists(PASTA_IMAGENS):
     os.makedirs(PASTA_IMAGENS)
 
-CAMINHO_DB = "estoque.xlsx"
-TAMANHO_CARD = 250
-
+# --------------------------  JANELA PRINCIPAL  --------------------------
 root = tk.Tk()
 root.title("Sistema de Estoque Satelite")
 root.state("zoomed")
 root.update()
 
+# --------------------------  PLACEHOLDER DA BUSCA  --------------------------
+placeholder_text = "Pesquisar itens..."
+search_var = tk.StringVar()
+search_active = False
+
+# --------------------------  FUNÇÕES AUXILIARES  --------------------------
 def create_padded_photoimage(image_path, size, bg_color=(44, 44, 44)):
     if not os.path.exists(image_path):
         return None
@@ -48,9 +62,11 @@ def create_padded_photoimage(image_path, size, bg_color=(44, 44, 44)):
         print(f"Erro ao criar imagem padded: {e}")
         return None
 
+
 def salvar_no_excel():
+    """Salva em arquivo temporário e substitui o principal (evita PermissionError)"""
     try:
-        with pd.ExcelWriter(CAMINHO_DB, engine='openpyxl') as writer:
+        with pd.ExcelWriter(CAMINHO_TEMP, engine='openpyxl') as writer:
             if estoque:
                 dados_estoque = []
                 for item in estoque:
@@ -59,6 +75,7 @@ def salvar_no_excel():
                         "Id": item.get("id", f"ID_{len(dados_estoque) + 1}"),
                         "Quantidade": item["quantidade"],
                         "Preco": item.get("preco", None),
+                        "Categoria": item.get("categoria", "Sem Categoria"),
                         "Data_Criacao": item.get("data_criacao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M")),
                         "Data_Alteracao": item.get("data_alteracao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
                     })
@@ -73,23 +90,39 @@ def salvar_no_excel():
                         "Id": item.get("id", ""),
                         "Quantidade": item["quantidade"],
                         "Preco": item.get("preco", None),
+                        "Categoria": item.get("categoria", "Sem Categoria"),
                         "Data_Criacao": item.get("data_criacao", ""),
                         "Data_Alteracao": item.get("data_alteracao", ""),
                         "Data_Remocao": item.get("data_remocao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
                     })
                 df_removidos = pd.DataFrame(dados_removidos)
                 df_removidos.to_excel(writer, sheet_name='Removidos', index=False)
+
+            df_categorias = pd.DataFrame({'Categoria': categorias})
+            df_categorias.to_excel(writer, sheet_name='Categorias', index=False)
+
+        # Substitui o arquivo principal
+        if os.path.exists(CAMINHO_DB):
+            os.remove(CAMINHO_DB)
+        os.rename(CAMINHO_TEMP, CAMINHO_DB)
         print(f"Excel salvo com sucesso: {CAMINHO_DB}")
     except Exception as e:
-        print(f"Erro ao salvar Excel: {e}")
+        if os.path.exists(CAMINHO_TEMP):
+            try:
+                os.remove(CAMINHO_TEMP)
+            except:
+                pass
+        messagebox.showerror("Erro", f"Não foi possível salvar o Excel:\n{e}\nFeche o arquivo manualmente.")
+
 
 def carregar_do_excel():
-    global estoque, removidos
+    global estoque, removidos, categorias
     estoque.clear()
     removidos.clear()
 
     if not os.path.exists(CAMINHO_DB):
         print(f"Arquivo {CAMINHO_DB} não encontrado. Iniciando com estoque vazio.")
+        categorias = ["Sem Categoria"]
         return
 
     try:
@@ -101,7 +134,6 @@ def carregar_do_excel():
                 for _, row in df_estoque.iterrows():
                     item_id = str(row.get("Id", f"ID_{len(estoque) + 1}"))
                     if item_id in seen_ids:
-                        print(f"Duplicado detectado: ID {item_id}, pulando.")
                         continue
                     seen_ids.add(item_id)
                     nome_arquivo = f"{row['Nome']}_{item_id}.jpg"
@@ -119,6 +151,7 @@ def carregar_do_excel():
                         "nome": str(row["Nome"]),
                         "quantidade": int(row["Quantidade"]),
                         "preco": preco,
+                        "categoria": str(row.get("Categoria", "Sem Categoria")),
                         "var_esq": tk.IntVar(value=1),
                         "var_dir": tk.IntVar(value=1),
                         "id": item_id,
@@ -126,11 +159,9 @@ def carregar_do_excel():
                         "data_alteracao": str(row.get("Data_Alteracao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M")))
                     }
                     estoque.append(item)
-                    print(f"Item carregado: {item['nome']} (ID: {item['id']}, Qtd: {item['quantidade']}, Preço: {item['preco']})")
 
             if 'Removidos' in xls.sheet_names:
                 df_removidos = pd.read_excel(xls, 'Removidos')
-                print(f"Carregando {len(df_removidos)} itens da aba 'Removidos'...")
                 for _, row in df_removidos.iterrows():
                     preco = row.get("Preco", None)
                     if pd.isna(preco):
@@ -142,71 +173,94 @@ def carregar_do_excel():
                         "nome": str(row["Nome"]),
                         "quantidade": int(row["Quantidade"]),
                         "preco": preco,
+                        "categoria": str(row.get("Categoria", "Sem Categoria")),
                         "id": str(row.get("Id", "")),
                         "data_criacao": str(row.get("Data_Criacao", "")),
                         "data_alteracao": str(row.get("Data_Alteracao", "")),
                         "data_remocao": str(row.get("Data_Remocao", datetime.datetime.now().strftime("%d/%m/%Y %H:%M")))
                     }
                     removidos.append(item)
-                    print(f"Item removido carregado: {item['nome']} (ID: {item['id']})")
-        print(f"Carregamento concluído: {len(estoque)} itens no estoque, {len(removidos)} itens removidos.")
+
+            if 'Categorias' in xls.sheet_names:
+                df_categorias = pd.read_excel(xls, 'Categorias')
+                categorias = list(df_categorias['Categoria'].unique())
+                if "Sem Categoria" not in categorias:
+                    categorias.insert(0, "Sem Categoria")
+            else:
+                categorias = ["Sem Categoria"]
+        print(f"Carregamento concluído: {len(estoque)} itens no estoque.")
     except Exception as e:
         print(f"Erro ao carregar Excel: {e}")
         messagebox.showerror("Erro", f"Falha ao carregar o arquivo de estoque: {e}")
+        categorias = ["Sem Categoria"]
+
 
 def salvar_imagem(caminho_original, nome_item, item_id):
     if not os.path.exists(caminho_original):
-        print(f"Imagem não encontrada: {caminho_original}")
         return None
-
     nome_arquivo = f"{nome_item}_{item_id}.jpg"
     caminho_destino = os.path.join(PASTA_IMAGENS, nome_arquivo)
-
     try:
         shutil.copy2(caminho_original, caminho_destino)
-        print(f"Imagem salva: {caminho_destino}")
         return caminho_destino
     except Exception as e:
         print(f"Erro ao salvar imagem: {e}")
         return None
 
+
 def salvar_estado():
-    global estoque, removidos
     estado = {
         'estoque': [],
-        'removidos': copy.deepcopy(removidos)
+        'removidos': []
     }
-
     for item in estoque:
         estado_estoque = {
             'nome': item['nome'],
             'quantidade': item['quantidade'],
             'preco': item.get('preco', None),
+            'categoria': item.get('categoria', "Sem Categoria"),
             'id': item['id'],
             'data_criacao': item['data_criacao'],
-            'data_alteracao': item['data_alteracao']
+            'data_alteracao': item['data_alteracao'],
+            'image_path': item.get('image_path'),  # salva o caminho, não o objeto imagem
+            # NÃO salva var_esq/var_dir (são tk.IntVar → não picklable)
         }
         estado['estoque'].append(estado_estoque)
+
+    # Copia removidos (sem objetos Tkinter)
+    for item in removidos:
+        estado_removido = {
+            'nome': item['nome'],
+            'quantidade': item['quantidade'],
+            'preco': item.get('preco', None),
+            'categoria': item.get('categoria', "Sem Categoria"),
+            'id': item.get('id', ''),
+            'data_criacao': item.get('data_criacao', ''),
+            'data_alteracao': item.get('data_alteracao', ''),
+            'data_remocao': item.get('data_remocao', '')
+        }
+        estado['removidos'].append(estado_removido)
 
     undo_stack.append(estado)
     if len(undo_stack) > 20:
         undo_stack.pop(0)
-    print(f"Estado salvo: {len(estado['estoque'])} itens no estoque, redo_stack size: {len(redo_stack)}")
+
 
 def recarregar_imagens_estoque(estoque_dados):
     novo_estoque = []
     for item_data in estoque_dados:
         nome_arquivo = f"{item_data['nome']}_{item_data['id']}.jpg"
         caminho_imagem = os.path.join(PASTA_IMAGENS, nome_arquivo)
-        image_path = caminho_imagem if os.path.exists(caminho_imagem) else None
+        image_path = caminho_imagem if os.path.exists(caminho_imagem) else item_data.get('image_path')
 
         item = {
             "image_path": image_path,
             "nome": item_data['nome'],
             "quantidade": item_data['quantidade'],
             "preco": item_data.get('preco', None),
-            "var_esq": tk.IntVar(value=1),
-            "var_dir": tk.IntVar(value=1),
+            "categoria": item_data.get('categoria', "Sem Categoria"),
+            "var_esq": tk.IntVar(value=1),   # RECRIA os IntVar
+            "var_dir": tk.IntVar(value=1),   # RECRIA os IntVar
             "id": item_data['id'],
             "data_criacao": item_data['data_criacao'],
             "data_alteracao": item_data['data_alteracao']
@@ -214,58 +268,36 @@ def recarregar_imagens_estoque(estoque_dados):
         novo_estoque.append(item)
     return novo_estoque
 
+
 def undo(event=None):
     global estoque, removidos
     if not undo_stack:
         messagebox.showinfo("Undo", "Nada para desfazer!")
         return
-
-    estado_atual = {
-        'estoque': [],
-        'removidos': copy.deepcopy(removidos)
-    }
+    estado_atual = {'estoque': [], 'removidos': copy.deepcopy(removidos)}
     for item in estoque:
-        estado_estoque = {
-            'nome': item['nome'],
-            'quantidade': item['quantidade'],
-            'preco': item.get('preco', None),
-            'id': item['id'],
-            'data_criacao': item['data_criacao'],
-            'data_alteracao': item['data_alteracao']
-        }
+        estado_estoque = {k: item.get(k) for k in ['nome', 'quantidade', 'preco', 'categoria', 'id', 'data_criacao', 'data_alteracao']}
         estado_atual['estoque'].append(estado_estoque)
     redo_stack.append(estado_atual)
     if len(redo_stack) > 20:
         redo_stack.pop(0)
-    print(f"Undo executado, redo_stack size: {len(redo_stack)}")
 
     estado_anterior = undo_stack.pop()
     removidos = copy.deepcopy(estado_anterior['removidos'])
     estoque = recarregar_imagens_estoque(estado_anterior['estoque'])
-
     salvar_no_excel()
-    registrar_historico("↩️ Desfeita a última ação")
+    registrar_historico("Desfeita a última ação")
     atualizar_tela()
+
 
 def redo(event=None):
     global estoque, removidos
     if not redo_stack:
         messagebox.showinfo("Redo", "Nada para refazer!")
         return
-
-    estado_atual = {
-        'estoque': [],
-        'removidos': copy.deepcopy(removidos)
-    }
+    estado_atual = {'estoque': [], 'removidos': copy.deepcopy(removidos)}
     for item in estoque:
-        estado_estoque = {
-            'nome': item['nome'],
-            'quantidade': item['quantidade'],
-            'preco': item.get('preco', None),
-            'id': item['id'],
-            'data_criacao': item['data_criacao'],
-            'data_alteracao': item['data_alteracao']
-        }
+        estado_estoque = {k: item.get(k) for k in ['nome', 'quantidade', 'preco', 'categoria', 'id', 'data_criacao', 'data_alteracao']}
         estado_atual['estoque'].append(estado_estoque)
     undo_stack.append(estado_atual)
     if len(undo_stack) > 20:
@@ -274,32 +306,27 @@ def redo(event=None):
     estado_redo = redo_stack.pop()
     removidos = copy.deepcopy(estado_redo['removidos'])
     estoque = recarregar_imagens_estoque(estado_redo['estoque'])
-    print(f"Redo executado, redo_stack size: {len(redo_stack)}, undo_stack size: {len(undo_stack)}")
-
     salvar_no_excel()
-    registrar_historico("↪️ Refeita a ação desfeita")
+    registrar_historico("Refeita a ação desfeita")
     atualizar_tela()
+
 
 def exportar_historico():
     if not historico:
         messagebox.showwarning("Exportar", "Histórico vazio!")
         return
-
-    caminho = filedialog.asksaveasfilename(
-        title="Salvar Histórico",
-        defaultextension=".txt",
-        filetypes=[("Arquivo de Texto", "*.txt")]
-    )
+    caminho = filedialog.asksaveasfilename(title="Salvar Histórico", defaultextension=".txt",
+                                           filetypes=[("Texto", "*.txt")])
     if not caminho:
         return
-
     try:
-        with open(caminho, "w", encoding="utf-8") as arquivo:
+        with open(caminho, "w", encoding="utf-8") as f:
             for acao in historico:
-                arquivo.write(acao + "\n")
-        messagebox.showinfo("Exportar", f"Histórico exportado com sucesso em:\n{caminho}")
+                f.write(acao + "\n")
+        messagebox.showinfo("Exportar", f"Histórico exportado em:\n{caminho}")
     except Exception as e:
-        messagebox.showerror("Erro", f"Falha ao exportar histórico:\n{e}")
+        messagebox.showerror("Erro", f"Erro ao exportar: {e}")
+
 
 def registrar_historico(acao):
     global ultima_data_registrada
@@ -311,52 +338,71 @@ def registrar_historico(acao):
     if ultima_data_registrada and ultima_data_registrada != data_atual:
         historico.append("--------")
         try:
-            with open(CAMINHO_HISTORICO, "a", encoding="utf-8") as arquivo:
-                arquivo.write("--------\n")
-        except Exception as e:
-            print(f"Erro ao gravar separador no arquivo {CAMINHO_HISTORICO}: {e}")
+            with open(CAMINHO_HISTORICO, "a", encoding="utf-8") as f:
+                f.write("--------\n")
+        except:
+            pass
 
     historico.append(acao_completa)
     ultima_data_registrada = data_atual
-
     try:
-        with open(CAMINHO_HISTORICO, "a", encoding="utf-8") as arquivo:
-            arquivo.write(acao_completa + "\n")
-        print(f"Histórico gravado em {CAMINHO_HISTORICO}: {acao_completa}")
-    except Exception as e:
-        print(f"Erro ao gravar histórico em {CAMINHO_HISTORICO}: {e}")
+        with open(CAMINHO_HISTORICO, "a", encoding="utf-8") as f:
+            f.write(acao_completa + "\n")
+    except:
+        pass
 
     if painel_aberto:
         atualizar_historico()
 
+
+# --------------------------  PAINEL HISTÓRICO  --------------------------
 def toggle_historico():
-    global painel_aberto
-    if painel_aberto:
-        painel_historico.pack_forget()
-        painel_aberto = False
+    global painel_aberto, painel_minimizado
+    if painel_minimizado:
+        expandir_painel()
     else:
+        if painel_aberto:
+            painel_historico.pack_forget()
+            painel_aberto = False
+            btn_toggle_historico.config(text="Histórico")
+        else:
+            painel_historico.pack(side="right", fill="y", padx=(0, 0))
+            painel_aberto = True
+            btn_toggle_historico.config(text="Fechar")
+            atualizar_historico()
+    ajustar_modo_visualizacao()
+
+
+def minimizar_painel():
+    global painel_minimizado, painel_aberto
+    if not painel_aberto:
+        return
+    painel_historico.pack_forget()
+    painel_minimizado = True
+    btn_toggle_historico.config(text="Histórico")
+    ajustar_modo_visualizacao()
+
+
+def expandir_painel():
+    global painel_minimizado, painel_aberto
+    if painel_minimizado:
         painel_historico.pack(side="right", fill="y", padx=(0, 0))
+        painel_minimizado = False
         painel_aberto = True
+        btn_toggle_historico.config(text="Fechar")
         atualizar_historico()
-    atualizar_tela()
+        ajustar_modo_visualizacao()
+
 
 def atualizar_historico():
     for widget in painel_historico.winfo_children():
         widget.destroy()
 
-    if not historico:
-        return
-
-    tk.Label(
-        painel_historico,
-        text="📜 Histórico",
-        font=("Arial", 14, "bold"),
-        bg="#222",
-        fg="white"
-    ).pack(pady=5)
+    tk.Label(painel_historico, text="Histórico de Ações", font=("Arial", 14, "bold"),
+             bg="#222", fg="#00d4ff").pack(pady=10)
 
     frame_principal = tk.Frame(painel_historico, bg="#222")
-    frame_principal.pack(fill="both", expand=True)
+    frame_principal.pack(fill="both", expand=True, padx=10)
 
     canvas_hist = tk.Canvas(frame_principal, bg="#222", highlightthickness=0, width=280)
     scrollbar = tk.Scrollbar(frame_principal, orient="vertical", command=canvas_hist.yview)
@@ -366,7 +412,6 @@ def atualizar_historico():
         "<Configure>",
         lambda e: canvas_hist.configure(scrollregion=canvas_hist.bbox("all"))
     )
-
     canvas_hist.create_window((0, 0), window=scroll_frame_hist, anchor="nw")
     canvas_hist.configure(yscrollcommand=scrollbar.set)
 
@@ -375,31 +420,46 @@ def atualizar_historico():
 
     def _on_mousewheel_hist(event):
         canvas_hist.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
     canvas_hist.bind("<MouseWheel>", _on_mousewheel_hist)
 
     for acao in historico[::-1]:
-        tk.Label(
-            scroll_frame_hist,
-            text=acao,
-            anchor="w",
-            justify="left",
-            wraplength=250,
-            font=("Arial", 11),
-            bg="#333" if acao != "--------" else "#222",
-            fg="white" if acao != "--------" else "#888"
-        ).pack(fill="x", padx=2, pady=1)
+        bg = "#333" if acao != "--------" else "#222"
+        fg = "white" if acao != "--------" else "#888"
+        tk.Label(scroll_frame_hist, text=acao, anchor="w", justify="left",
+                 wraplength=250, font=("Arial", 10), bg=bg, fg=fg).pack(fill="x", padx=2, pady=1)
 
-    btn_export = tk.Button(
-        painel_historico,
-        text="💾 Exportar Log",
-        command=exportar_historico,
-        bg="#555",
-        fg="white",
-        font=("Arial", 12)
-    )
-    btn_export.pack(side="bottom", pady=5, padx=5, fill="x")
+    tk.Button(painel_historico, text="Exportar Log", command=exportar_historico,
+              bg="#17a2b8", fg="white", font=("Arial", 11, "bold"), relief="flat").pack(side="bottom", pady=8, fill="x")
 
+
+# --------------------------  BUSCA (PLACEHOLDER)  --------------------------
+def on_search_focus_in(event):
+    global search_active
+    if not search_active:
+        entry_search.delete(0, tk.END)
+        entry_search.config(fg="white")
+        search_active = True
+
+
+def on_search_focus_out(event):
+    global search_active
+    if not entry_search.get().strip():
+        entry_search.insert(0, placeholder_text)
+        entry_search.config(fg="#aaa")
+        search_active = False
+        if painel_aberto and not painel_minimizado:
+            minimizar_painel()
+
+
+def on_search_keyrelease(event):
+    termo = search_var.get().strip()
+    if termo and termo != placeholder_text:
+        if painel_minimizado:
+            expandir_painel()
+    atualizar_tela()
+
+
+# --------------------------  AUTENTICAÇÃO  --------------------------
 def open_password_form(action_title):
     global last_successful_auth
     if time.time() - last_successful_auth < 60:
@@ -409,45 +469,44 @@ def open_password_form(action_title):
     topo.title("Autenticação")
     topo.geometry("400x250")
     topo.configure(bg="#2c2c2c")
-    topo.update_idletasks()
-    x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
-    y = (root.winfo_screenheight() - topo.winfo_reqheight()) // 2
+    x = (root.winfo_screenwidth() - 400) // 2
+    y = (root.winfo_screenheight() - 250) // 2
     topo.geometry(f"+{x}+{y}")
     topo.transient(root)
     topo.grab_set()
 
-    frame_form = tk.Frame(topo, bg="#2c2c2c", padx=20, pady=20)
-    frame_form.pack(fill="both", expand=True)
+    tk.Label(topo, text=f"Senha para {action_title}", font=("Arial", 16, "bold"),
+             bg="#2c2c2c", fg="#00d4ff").pack(pady=20)
 
-    tk.Label(frame_form, text=f"Senha para {action_title}", font=("Arial", 16, "bold"), bg="#2c2c2c", fg="#00d4ff").pack(pady=10)
-
-    entry_senha = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white", show="*", width=30)
-    entry_senha.pack(fill="x", pady=5)
-    entry_senha.focus_set()
+    entry = tk.Entry(topo, show="*", font=("Arial", 12), bg="#444", fg="white",
+                     insertbackground="white")
+    entry.pack(pady=10, fill="x", padx=40)
+    entry.focus()
 
     result = [False]
 
-    def confirmar(event=None):
-        global last_successful_auth
-        if entry_senha.get() == "senhaadmsatelite":
+    def confirmar():
+        if entry.get() == "senhaadmsatelite":
+            global last_successful_auth
             last_successful_auth = time.time()
             result[0] = True
             topo.destroy()
         else:
             messagebox.showerror("Erro", "Senha incorreta!")
-            entry_senha.delete(0, tk.END)
+            entry.delete(0, tk.END)
 
-    frame_botoes = tk.Frame(frame_form, bg="#2c2c2c")
-    frame_botoes.pack(pady=20)
+    tk.Button(topo, text="Confirmar", command=confirmar, bg="#28a745",
+              fg="white").pack(side="left", padx=20, pady=20)
+    tk.Button(topo, text="Cancelar", command=topo.destroy, bg="#dc3545",
+              fg="white").pack(side="right", padx=20, pady=20)
 
-    tk.Button(frame_botoes, text="Confirmar", command=confirmar, bg="#28a745", fg="white", font=("Arial", 12, "bold"), padx=10, pady=5).pack(side="left", padx=10)
-    tk.Button(frame_botoes, text="Cancelar", command=topo.destroy, bg="#dc3545", fg="white", font=("Arial", 12, "bold"), padx=10, pady=5).pack(side="left")
-
-    topo.bind("<Return>", confirmar)
+    topo.bind("<Return>", lambda e: confirmar())
     root.wait_window(topo)
     return result[0]
 
+
 def open_item_form(item=None):
+    global categorias
     is_edit = item is not None
     title = "Editar Item" if is_edit else "Adicionar Item"
 
@@ -457,59 +516,107 @@ def open_item_form(item=None):
     topo.transient(root)
     topo.grab_set()
 
-    frame_form = tk.Frame(topo, bg="#2c2c2c", padx=20, pady=20)
+    # === CANVAS COM SCROLL ===
+    canvas = tk.Canvas(topo, bg="#2c2c2c")
+    scrollbar = tk.Scrollbar(topo, orient="vertical", command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas, bg="#2c2c2c")
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    # === FORMULÁRIO ===
+    frame_form = tk.Frame(scrollable_frame, bg="#2c2c2c", padx=25, pady=25)
     frame_form.pack(fill="both", expand=True)
 
-    tk.Label(frame_form, text=title, font=("Arial", 16, "bold"), bg="#2c2c2c", fg="#00d4ff").pack(pady=10)
+    tk.Label(frame_form, text=title, font=("Arial", 18, "bold"),
+             bg="#2c2c2c", fg="#00d4ff").pack(pady=(0, 20))
 
-    tk.Label(frame_form, text="Nome:", font=("Arial", 12), bg="#2c2c2c", fg="white").pack(anchor="w")
-    entry_nome = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white")
+    # Nome
+    tk.Label(frame_form, text="Nome:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w")
+    entry_nome = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", relief="flat")
     entry_nome.pack(fill="x", pady=5)
     if is_edit:
         entry_nome.insert(0, item["nome"])
 
-    tk.Label(frame_form, text="Quantidade:", font=("Arial", 12), bg="#2c2c2c", fg="white").pack(anchor="w")
-    entry_quantidade = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white")
+    # Quantidade
+    tk.Label(frame_form, text="Quantidade:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15, 0))
+    entry_quantidade = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", relief="flat")
     entry_quantidade.pack(fill="x", pady=5)
-    if is_edit:
-        entry_quantidade.insert(0, str(item["quantidade"]))
-    else:
-        entry_quantidade.insert(0, "1")
+    entry_quantidade.insert(0, str(item["quantidade"]) if is_edit else "1")
 
-    tk.Label(frame_form, text="Preço (opcional):", font=("Arial", 12), bg="#2c2c2c", fg="white").pack(anchor="w")
-    entry_preco = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", insertbackground="white")
+    # Preço
+    tk.Label(frame_form, text="Preço (opcional):", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15, 0))
+    entry_preco = tk.Entry(frame_form, font=("Arial", 12), bg="#444", fg="white", relief="flat")
     entry_preco.pack(fill="x", pady=5)
     if is_edit and item.get("preco") is not None:
         entry_preco.insert(0, str(item["preco"]))
 
-    tk.Label(frame_form, text="Imagem:", font=("Arial", 12), bg="#2c2c2c", fg="white").pack(anchor="w", pady=(10,0))
-    frame_imagem = tk.Frame(frame_form, bg="#2c2c2c")
-    frame_imagem.pack(fill="both", pady=10)
+    # Categoria
+    tk.Label(frame_form, text="Categoria:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15, 0))
+    frame_categoria = tk.Frame(frame_form, bg="#2c2c2c")
+    frame_categoria.pack(fill="x", pady=5)
+    combobox_categoria = Combobox(frame_categoria, values=categorias, state="readonly", font=("Arial", 11))
+    combobox_categoria.pack(side="left", fill="x", expand=True)
+    combobox_categoria.set(item.get("categoria", "Sem Categoria") if is_edit else "Sem Categoria")
+
+    def add_nova_categoria():
+        nova = simpledialog.askstring("Nova Categoria", "Nome:", parent=topo)
+        if nova and nova.strip() and nova.strip() not in categorias:
+            categorias.append(nova.strip())
+            combobox_categoria['values'] = categorias
+            combobox_categoria.set(nova.strip())
+            salvar_no_excel()
+            registrar_historico(f"Adicionada categoria '{nova.strip()}'")
+
+    tk.Button(frame_categoria, text="+", command=add_nova_categoria,
+              bg="#17a2b8", fg="white", font=("Arial", 12, "bold"), width=3).pack(side="right", padx=5)
+
+    # === IMAGEM 350x350 ===
+    tk.Label(frame_form, text="Imagem:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(20, 5))
+
+    frame_imagem_container = tk.Frame(frame_form, bg="#333", bd=2, relief="groove")
+    frame_imagem_container.pack(pady=10, fill="x")
+
+    IMG_WIDTH, IMG_HEIGHT = 350, 350  # <<< 350x350
+    canvas_imagem = tk.Canvas(frame_imagem_container, width=IMG_WIDTH, height=IMG_HEIGHT, bg="#444", highlightthickness=0)
+    canvas_imagem.pack(pady=10, padx=10)
 
     image_path_var = tk.StringVar(value=item.get("image_path", "") if is_edit else "")
-    lbl_imagem = tk.Label(frame_imagem, bg="#444")
-    lbl_imagem.pack(side="left", padx=10, pady=10, fill="both", expand=True)
+    current_photo = None
 
-    def update_image_preview(path):
-        print(f"Atualizando visualização da imagem: {path}")  # Debug
-        if path and os.path.exists(path):
+    def update_image_preview():
+        nonlocal current_photo
+        caminho = image_path_var.get()
+        canvas_imagem.delete("all")
+        if caminho and os.path.exists(caminho):
             try:
-                img = Image.open(path)
-                max_width = 300
-                img.thumbnail((max_width, max_width * img.size[1] // img.size[0]), Image.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                lbl_imagem.config(image=photo)
-                lbl_imagem.image = photo
-                print("Imagem de visualização atualizada com sucesso")
+                img = Image.open(caminho)
+                img.thumbnail((IMG_WIDTH - 30, IMG_HEIGHT - 30), Image.Resampling.LANCZOS)
+                bg = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT), "#444")
+                offset = ((IMG_WIDTH - img.width) // 2, (IMG_HEIGHT - img.height) // 2)
+                bg.paste(img, offset)
+                current_photo = ImageTk.PhotoImage(bg)
+                canvas_imagem.create_image(IMG_WIDTH // 2, IMG_HEIGHT // 2, image=current_photo)
             except Exception as e:
-                print(f"Erro ao carregar imagem de visualização: {e}")
-                lbl_imagem.config(image=None)
+                canvas_imagem.create_text(IMG_WIDTH // 2, IMG_HEIGHT // 2, text="Erro na imagem", fill="red", font=("Arial", 12))
         else:
-            lbl_imagem.config(image=None)
-            print("Nenhuma imagem válida para exibir")
+            canvas_imagem.create_text(IMG_WIDTH // 2, IMG_HEIGHT // 2, text="Nenhuma imagem", fill="#aaa", font=("Arial", 14))
 
     if is_edit and item.get("image_path"):
-        update_image_preview(item["image_path"])
+        image_path_var.set(item["image_path"])
+    update_image_preview()
+
+    # === BOTÃO SELECIONAR IMAGEM ===
+    frame_botoes_imagem = tk.Frame(frame_form, bg="#2c2c2c")
+    frame_botoes_imagem.pack(pady=10)
 
     def selecionar_imagem():
         caminho = filedialog.askopenfilename(
@@ -518,35 +625,21 @@ def open_item_form(item=None):
             parent=topo
         )
         if caminho:
-            print(f"Imagem selecionada: {caminho}")  # Debug
             image_path_var.set(caminho)
-            update_image_preview(caminho)
+            update_image_preview()
 
-    btn_selecionar = tk.Button(
-        frame_imagem,
-        text="Selecionar Imagem",
-        command=selecionar_imagem,
-        bg="#17a2b8",
-        fg="white",
-        font=("Arial", 14, "bold"),
-        padx=15,
-        pady=10,
-        relief="raised",
-        activebackground="#138496",
-        activeforeground="white"
-    )
-    btn_selecionar.pack(side="left", padx=10, pady=10)
-    print("Botão Selecionar Imagem criado e empacotado")  # Debug
+    tk.Button(frame_botoes_imagem, text="Selecionar Imagem", command=selecionar_imagem,
+              bg="#17a2b8", fg="white", font=("Arial", 13, "bold"), padx=25, pady=12).pack(pady=8)
 
-    frame_botoes = tk.Frame(frame_form, bg="#2c2c2c")
-    frame_botoes.pack(pady=20)
+    # === BOTÕES SALVAR E CANCELAR (SEMPRE VISÍVEIS) ===
+    frame_botoes_final = tk.Frame(frame_form, bg="#2c2c2c")
+    frame_botoes_final.pack(pady=35, fill="x")
 
     def confirmar():
         nome = entry_nome.get().strip()
         if not nome:
             messagebox.showerror("Erro", "O nome não pode estar vazio!")
             return
-
         try:
             quantidade = int(entry_quantidade.get())
             if quantidade < 0:
@@ -566,7 +659,9 @@ def open_item_form(item=None):
                 messagebox.showerror("Erro", "Preço deve ser um número não negativo!")
                 return
 
+        categoria = combobox_categoria.get() or "Sem Categoria"
         new_image_path = image_path_var.get()
+
         if not new_image_path and not is_edit:
             messagebox.showerror("Erro", "Selecione uma imagem para o item!")
             return
@@ -575,34 +670,31 @@ def open_item_form(item=None):
 
         if is_edit:
             nome_antigo = item["nome"]
-            qtd_antiga = item["quantidade"]
-            preco_antigo = item.get("preco", None)
             id_item = item["id"]
             image_path_antigo = item.get("image_path")
 
             item["nome"] = nome
             item["quantidade"] = quantidade
             item["preco"] = preco
+            item["categoria"] = categoria
             item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
             if new_image_path and new_image_path != image_path_antigo:
                 if image_path_antigo and os.path.exists(image_path_antigo):
                     os.remove(image_path_antigo)
-                item["image_path"] = salvar_imagem(new_image_path, item["nome"], id_item)
-            else:
-                if nome_antigo != item["nome"] and image_path_antigo:
-                    caminho_antigo = image_path_antigo
-                    nome_arquivo_novo = f"{item['nome']}_{id_item}.jpg"
-                    caminho_novo = os.path.join(PASTA_IMAGENS, nome_arquivo_novo)
-                    if os.path.exists(caminho_antigo):
-                        shutil.move(caminho_antigo, caminho_novo)
-                        item["image_path"] = caminho_novo
+                item["image_path"] = salvar_imagem(new_image_path, nome, id_item)
+            elif nome_antigo != nome and image_path_antigo:
+                caminho_antigo = image_path_antigo
+                nome_arquivo_novo = f"{nome}_{id_item}.jpg"
+                caminho_novo = os.path.join(PASTA_IMAGENS, nome_arquivo_novo)
+                if os.path.exists(caminho_antigo):
+                    shutil.move(caminho_antigo, caminho_novo)
+                    item["image_path"] = caminho_novo
 
-            registrar_historico(f"✏️ Editado '{nome_antigo}' (ID: {id_item}) Qtd: {qtd_antiga} Preço: {preco_antigo} → '{nome}' Qtd: {quantidade} Preço: {preco}")
+            registrar_historico(f"Editado '{nome_antigo}' → '{nome}' (ID:{id_item})")
         else:
             item_id = f"ID_{len(estoque) + 1}"
             data_agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-
             saved_path = salvar_imagem(new_image_path, nome, item_id)
             if not saved_path:
                 messagebox.showerror("Erro", "Falha ao salvar a imagem!")
@@ -613,6 +705,7 @@ def open_item_form(item=None):
                 "nome": nome,
                 "quantidade": quantidade,
                 "preco": preco,
+                "categoria": categoria,
                 "var_esq": tk.IntVar(value=1),
                 "var_dir": tk.IntVar(value=1),
                 "id": item_id,
@@ -620,106 +713,78 @@ def open_item_form(item=None):
                 "data_alteracao": data_agora
             }
             estoque.append(new_item)
-            registrar_historico(f"➕ Adicionado '{nome}' (ID: {item_id}) com {quantidade} unidades, Preço: {preco}")
+            registrar_historico(f"Adicionado '{nome}' (ID:{item_id})")
 
         salvar_no_excel()
         atualizar_tela()
         topo.destroy()
 
-    tk.Button(frame_botoes, text="Salvar", command=confirmar, bg="#28a745", fg="white", font=("Arial", 12, "bold"), padx=10, pady=5).pack(side="left", padx=10)
-    tk.Button(frame_botoes, text="Cancelar", command=topo.destroy, bg="#dc3545", fg="white", font=("Arial", 12, "bold"), padx=10, pady=5).pack(side="left")
+    tk.Button(frame_botoes_final, text="SALVAR", command=confirmar,
+              bg="#28a745", fg="white", font=("Arial", 14, "bold"),
+              padx=40, pady=15, relief="raised").pack(side="left", padx=30)
+    tk.Button(frame_botoes_final, text="CANCELAR", command=topo.destroy,
+              bg="#dc3545", fg="white", font=("Arial", 14, "bold"),
+              padx=40, pady=15, relief="raised").pack(side="right", padx=30)
+
+    # === TAMANHO DA JANELA ===
+    topo.geometry("600x900")  # Ajustado para 350x350
+    topo.update_idletasks()
+    x = (root.winfo_screenwidth() - 600) // 2
+    y = (root.winfo_screenheight() - 900) // 2
+    topo.geometry(f"+{x}+{y}")
+
+    # Scroll com mouse
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    canvas.bind("<MouseWheel>", _on_mousewheel)
 
     topo.bind("<Return>", lambda e: confirmar())
 
-    topo.update_idletasks()
-    width = 600
-    height = 800
-    x = (root.winfo_screenwidth() - width) // 2
-    y = (root.winfo_screenheight) - height // 2
-    topo.geometry(f"{width}x{height}+{x}+{y}")
-    topo.update_idletasks()
 
 def adicionar_item():
     if not open_password_form("Adicionar Item"):
         return
     open_item_form()
 
-def alterar_imagem(item):
-    if not open_password_form("Alterar Imagem"):
+
+def editar_item():
+    global item_selecionado
+    if not item_selecionado:
+        messagebox.showwarning("Editar", "Nenhum item selecionado!")
         return
-    caminho_imagem = filedialog.askopenfilename(
-        title="Escolha a nova foto do item",
-        filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")],
-        parent=root
-    )
-    if not caminho_imagem:
+    if not open_password_form("Editar Item"):
         return
+    open_item_form(item=item_selecionado)
 
-    salvar_estado()
-
-    if item.get("image_path") and os.path.exists(item["image_path"]):
-        try:
-            os.remove(item["image_path"])
-            print(f"Imagem antiga removida: {item['image_path']}")
-        except Exception as e:
-            print(f"Erro ao remover imagem antiga: {e}")
-
-    new_path = salvar_imagem(caminho_imagem, item["nome"], item["id"])
-    if new_path:
-        item["image_path"] = new_path
-        item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-        salvar_no_excel()
-        registrar_historico(f"🖼️ Imagem alterada para '{item['nome']}' (ID: {item['id']})")
-        atualizar_tela()
-    else:
-        messagebox.showerror("Erro", "Falha ao alterar a imagem!")
 
 def remover_item():
     global item_selecionado
     if not item_selecionado:
         messagebox.showwarning("Remover", "Nenhum item selecionado!")
         return
-
     if not open_password_form("Remover Item"):
         return
 
     salvar_estado()
-    item_removido = {
-        "nome": item_selecionado['nome'],
-        "quantidade": item_selecionado['quantidade'],
-        "preco": item_selecionado.get('preco', None),
-        "id": item_selecionado['id'],
-        "data_criacao": item_selecionado['data_criacao'],
-        "data_alteracao": item_selecionado['data_alteracao'],
-        "data_remocao": datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    }
+    item_removido = {k: item_selecionado[k] for k in item_selecionado}
+    item_removido["data_remocao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     removidos.append(item_removido)
-    registrar_historico(
-        f"➖ Removido '{item_selecionado['nome']}' (ID: {item_selecionado['id']}) - Movido para Removidos")
+    registrar_historico(f"Removido '{item_selecionado['nome']}' (ID:{item_selecionado['id']})")
     estoque.remove(item_selecionado)
     item_selecionado = None
     salvar_no_excel()
     atualizar_tela()
 
+
 def restaurar_item():
-    global removidos
     if not removidos:
         messagebox.showinfo("Restaurar", "Nenhum item removido para restaurar!")
         return
 
     topo = tk.Toplevel(root)
     topo.title("Restaurar Item")
-    topo.geometry("450x350")
-    topo.update_idletasks()
-    x = (root.winfo_screenwidth() - topo.winfo_reqwidth()) // 2
-    y = (root.winfo_screenheight() - topo.winfo_reqheight()) // 2
-    topo.geometry(f"+{x}+{y}")
-    topo.transient(root)
-    topo.grab_set()
-
-    tk.Label(topo, text="Selecione o item para restaurar:", font=("Arial", 12, "bold")).pack(pady=10)
-
-    listbox = tk.Listbox(topo, font=("Arial", 10), height=12)
+    topo.geometry("500x400")
+    listbox = tk.Listbox(topo, font=("Arial", 10), height=15)
     for idx, item in enumerate(removidos):
         texto = f"{item['id']} - {item['nome']} (Qtd: {item['quantidade']})"
         texto += f"\n   Removido: {item.get('data_remocao', 'N/A')}"
@@ -727,12 +792,11 @@ def restaurar_item():
     listbox.pack(fill="both", expand=True, padx=10, pady=10)
 
     def confirmar():
-        selecao = listbox.curselection()
-        if not selecao:
-            messagebox.showwarning("Seleção", "Selecione um item para restaurar!")
+        sel = listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Seleção", "Selecione um item!")
             return
-
-        idx = selecao[0]
+        idx = sel[0]
         item_restaurar = removidos.pop(idx)
 
         nome_arquivo = f"{item_restaurar['nome']}_{item_restaurar['id']}.jpg"
@@ -744,6 +808,7 @@ def restaurar_item():
             "nome": item_restaurar["nome"],
             "quantidade": item_restaurar["quantidade"],
             "preco": item_restaurar.get("preco", None),
+            "categoria": item_restaurar.get("categoria", "Sem Categoria"),
             "var_esq": tk.IntVar(value=1),
             "var_dir": tk.IntVar(value=1),
             "id": item_restaurar["id"],
@@ -754,79 +819,54 @@ def restaurar_item():
         salvar_estado()
         estoque.append(novo_item)
         salvar_no_excel()
-        registrar_historico(f"🔄 Restaurado '{novo_item['nome']}' (ID: {novo_item['id']}) dos Removidos")
+        registrar_historico(f"Restaurado '{novo_item['nome']}' (ID:{novo_item['id']})")
         atualizar_tela()
         topo.destroy()
 
-    def cancelar():
-        topo.destroy()
+    tk.Button(topo, text="Restaurar", command=confirmar, bg="#28a745",
+              fg="white").pack(side="left", padx=20, pady=10)
+    tk.Button(topo, text="Cancelar", command=topo.destroy, bg="#6c757d",
+              fg="white").pack(side="right", padx=20, pady=10)
 
-    frame_botoes = tk.Frame(topo)
-    frame_botoes.pack(pady=10)
-
-    tk.Button(frame_botoes, text="Restaurar", command=confirmar, bg="#28a745", fg="white",
-              font=("Arial", 10, "bold")).pack(side="left", padx=5)
-    tk.Button(frame_botoes, text="Cancelar", command=cancelar, bg="#6c757d", fg="white",
-              font=("Arial", 10, "bold")).pack(side="left", padx=5)
-
-def editar_item():
-    global item_selecionado
-    if not item_selecionado:
-        messagebox.showwarning("Editar", "Nenhum item selecionado!")
-        return
-
-    if not open_password_form("Editar Item"):
-        return
-
-    open_item_form(item=item_selecionado)
 
 def adicionar_quantidade(item):
     try:
         valor = item["var_dir"].get()
         if valor <= 0:
-            messagebox.showwarning("Aviso", "Digite um número maior que 0!")
-            return
-
+            raise ValueError
         salvar_estado()
         item["quantidade"] += valor
         item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         item["var_dir"].set(1)
         salvar_no_excel()
-        registrar_historico(
-            f"⬆️ Adicionado +{valor} em '{item['nome']}' (ID: {item['id']}) → total {item['quantidade']}")
-        pos = conteudo_canvas.yview()[0]
+        registrar_historico(f"+{valor} em '{item['nome']}' → {item['quantidade']}")
         atualizar_tela()
-        conteudo_canvas.yview_moveto(pos)
-    except ValueError:
-        messagebox.showerror("Erro", "Digite um número válido!")
+    except:
+        messagebox.showwarning("Aviso", "Digite um número maior que 0!")
+
 
 def subtrair_quantidade(item):
     try:
         valor = item["var_esq"].get()
         if valor <= 0:
-            messagebox.showwarning("Aviso", "Digite um número maior que 0!")
-            return
-
+            raise ValueError
         salvar_estado()
         nova_qtd = max(0, item["quantidade"] - valor)
         item["quantidade"] = nova_qtd
         item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         item["var_esq"].set(1)
         salvar_no_excel()
-        registrar_historico(f"⬇️ Removido -{valor} de '{item['nome']}' (ID: {item['id']}) → total {nova_qtd}")
-        pos = conteudo_canvas.yview()[0]
+        registrar_historico(f"-{valor} de '{item['nome']}' → {nova_qtd}")
         atualizar_tela()
-        conteudo_canvas.yview_moveto(pos)
-    except ValueError:
-        messagebox.showerror("Erro", "Digite um número válido!")
+    except:
+        messagebox.showwarning("Aviso", "Digite um número maior que 0!")
+
 
 def selecionar_item(item):
     global item_selecionado
-    if item_selecionado == item:
-        item_selecionado = None
-    else:
-        item_selecionado = item
+    item_selecionado = None if item_selecionado == item else item
     atualizar_tela()
+
 
 def exportar_estoque():
     if not estoque:
@@ -834,341 +874,262 @@ def exportar_estoque():
         return
 
     df = pd.DataFrame([{
-        "ID": item["id"],
-        "Nome": item["nome"],
-        "Quantidade": item["quantidade"],
-        "Preco": item.get("preco", None),
-        "Data_Criacao": item["data_criacao"],
-        "Data_Alteracao": item["data_alteracao"]
-    } for item in estoque])
+        "ID": i["id"],
+        "Nome": i["nome"],
+        "Quantidade": i["quantidade"],
+        "Preco": i.get("preco", None),
+        "Categoria": i.get("categoria", "Sem Categoria"),
+        "Data_Criacao": i["data_criacao"],
+        "Data_Alteracao": i["data_alteracao"]
+    } for i in estoque])
 
     menu = tk.Toplevel(root)
     menu.title("Escolher formato")
     menu.geometry("300x200")
-    menu.update_idletasks()
-    x = (root.winfo_screenwidth() - menu.winfo_reqwidth()) // 2
-    y = (root.winfo_screenheight() - menu.winfo_reqheight()) // 2
+    x = (root.winfo_screenwidth() - 300) // 2
+    y = (root.winfo_screenheight() - 200) // 2
     menu.geometry(f"+{x}+{y}")
-    menu.resizable(False, False)
 
-    def salvar_excel():
-        caminho = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
+    tk.Button(menu, text="Excel (.xlsx)", command=lambda: salvar_arquivo(df.to_excel, ".xlsx"), width=25).pack(pady=5)
+    tk.Button(menu, text="CSV (.csv)", command=lambda: salvar_arquivo(df.to_csv, ".csv"), width=25).pack(pady=5)
+    tk.Button(menu, text="TXT (.txt)", command=lambda: salvar_txt(df), width=25).pack(pady=5)
+    tk.Button(menu, text="PDF (.pdf)", command=lambda: salvar_pdf(df), width=25).pack(pady=5)
+
+    def salvar_arquivo(func, ext):
+        caminho = filedialog.asksaveasfilename(defaultextension=ext, filetypes=[(ext[1:], f"*{ext}")])
         if caminho:
-            df.to_excel(caminho, index=False)
-            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+            func(caminho, index=False)
+            messagebox.showinfo("Exportar", "Exportado com sucesso!")
         menu.destroy()
 
-    def salvar_csv():
-        caminho = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
-        if caminho:
-            df.to_csv(caminho, index=False)
-            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
-        menu.destroy()
-
-    def salvar_txt():
+    def salvar_txt(df):
         caminho = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("TXT", "*.txt")])
         if caminho:
             with open(caminho, "w", encoding="utf-8") as f:
-                f.write("ESTOQUE SATELITE\n")
-                f.write("=" * 50 + "\n\n")
-                for item in estoque:
-                    f.write(f"ID: {item['id']}\n")
-                    f.write(f"Nome: {item['nome']}\n")
-                    f.write(f"Quantidade: {item['quantidade']}\n")
-                    f.write(f"Preço: {item.get('preco', 'N/A')}\n")
-                    f.write(f"Data Criação: {item['data_criacao']}\n")
-                    f.write(f"Data Alteração: {item['data_alteracao']}\n")
-                    f.write("-" * 30 + "\n")
-            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+                f.write("ESTOQUE SATELITE\n" + "="*50 + "\n\n")
+                for i in estoque:
+                    f.write(f"ID: {i['id']}\nNome: {i['nome']}\nQtd: {i['quantidade']}\nPreço: {i.get('preco','N/A')}\nCat: {i.get('categoria','Sem Categoria')}\n\n")
+            messagebox.showinfo("Exportar", "Exportado com sucesso!")
         menu.destroy()
 
-    def salvar_pdf():
+    def salvar_pdf(df):
         caminho = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")])
         if caminho:
             c = canvas.Canvas(caminho, pagesize=letter)
-            largura, altura = letter
-            y = altura - 50
-            c.setFont("Helvetica-Bold", 14)
-            c.drawString(50, y, "Estoque Satelite")
-            y -= 30
-            c.setFont("Helvetica", 10)
-            for i, item in enumerate(estoque, start=1):
-                texto = f"{i}. {item['id']} - {item['nome']}"
-                c.drawString(50, y, texto)
-                y -= 15
-                c.drawString(50, y, f"   Qtd: {item['quantidade']} | Preço: {item.get('preco', 'N/A')} | Criado: {item['data_criacao'][:10]}")
-                y -= 15
-                c.drawString(50, y, f"   Última alteração: {item['data_alteracao'][:10]}")
+            y = 750
+            for i in estoque:
+                c.drawString(50, y, f"{i['id']} - {i['nome']} | Qtd: {i['quantidade']} | Preço: {i.get('preco','N/A')}")
                 y -= 20
-                if y < 80:
+                if y < 50:
                     c.showPage()
-                    y = altura - 50
+                    y = 750
             c.save()
-            messagebox.showinfo("Exportar", "Estoque exportado com sucesso!")
+            messagebox.showinfo("Exportar", "Exportado com sucesso!")
         menu.destroy()
 
-    tk.Button(menu, text="📄 Excel (.xlsx)", width=25, command=salvar_excel).pack(pady=10)
-    tk.Button(menu, text="📄 CSV (.csv)", width=25, command=salvar_csv).pack(pady=10)
-    tk.Button(menu, text="📄 TXT (.txt)", width=25, command=salvar_txt).pack(pady=10)
-    tk.Button(menu, text="📄 PDF (.pdf)", width=25, command=salvar_pdf).pack(pady=10)
 
+# --------------------------  LAYOUT RESPONSIVO  --------------------------
 MIN_CARD_WIDTH = 300
 MAX_CARD_WIDTH = 400
 CARD_PADDING = 20
-
-def compute_layout(largura_disponivel):
-    num_cols = 0
-    for cols in range(1, 20):
-        required = cols * (MIN_CARD_WIDTH + CARD_PADDING)
-        if required <= largura_disponivel:
-            num_cols = cols
-        else:
-            break
-    if num_cols == 0:
-        num_cols = 1
-    card_width = (largura_disponivel - num_cols * CARD_PADDING) // num_cols
-    card_width = max(MIN_CARD_WIDTH, min(MAX_CARD_WIDTH, card_width))
-    use_list = (num_cols == 1)
-    return num_cols, card_width, use_list
-
 pending_adjust = None
 prev_width = 0
 
+
+def compute_layout(largura_disponivel):
+    cols = max(1, largura_disponivel // (MIN_CARD_WIDTH + CARD_PADDING))
+    card_w = min(MAX_CARD_WIDTH, (largura_disponivel - cols * CARD_PADDING) // cols)
+    return cols, card_w, cols == 1
+
+
 def ajustar_modo_visualizacao(event=None):
     global pending_adjust, prev_width
-    def do_adjust():
+    def do():
         global pending_adjust, prev_width
         pending_adjust = None
-        largura_disponivel = frame_conteudo.winfo_width() or root.winfo_width()
-        if painel_aberto:
-            largura_disponivel -= 300
-        if abs(largura_disponivel - prev_width) > 50:
-            prev_width = largura_disponivel
+        larg = frame_conteudo.winfo_width() or root.winfo_width()
+        if painel_aberto and not painel_minimizado:
+            larg -= 300
+        if abs(larg - prev_width) > 50:
+            prev_width = larg
             atualizar_tela()
-
     if pending_adjust:
         root.after_cancel(pending_adjust)
-    pending_adjust = root.after(500, do_adjust)
+    pending_adjust = root.after(300, do)
+
+
+# --------------------------  ATUALIZAÇÃO DA TELA (CORRIGIDA!)  --------------------------
+def toggle_categoria(cat):
+    categoria_aberta[cat] = not categoria_aberta.get(cat, True)
+    atualizar_tela()
+
 
 def atualizar_tela():
-    global updating, item_selecionado, TAMANHO_CARD
+    global updating, TAMANHO_CARD
     if updating:
         return
     updating = True
 
-    print("Atualizando tela...")
-    try:
-        for widget in scroll_frame.winfo_children():
-            widget.destroy()
-    except Exception as e:
-        print(f"Erro ao destruir widgets antigos: {e}")
+    for w in scroll_frame.winfo_children():
+        w.destroy()
 
-    if not estoque:
-        print("Estoque vazio, exibindo mensagem de estoque vazio.")
-        try:
-            label_vazio = tk.Label(
-                scroll_frame,
-                text="📦 Estoque vazio\nClique em 'Adicionar' para começar",
-                font=("Arial", 16),
-                fg="#888",
-                bg="#111"
-            )
-            label_vazio.pack(expand=True, fill="both")
-            conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
-        except Exception as e:
-            print(f"Erro ao criar label de estoque vazio: {e}")
+    termo = search_var.get().strip().lower()
+    if termo == placeholder_text.lower():
+        termo = ""
+
+    categorias_dict = defaultdict(list)
+    for item in estoque:
+        if not termo or termo in item["nome"].lower() or termo in item["id"].lower():
+            categorias_dict[item.get("categoria", "Sem Categoria")].append(item)
+
+    if not any(categorias_dict.values()):
+        tk.Label(scroll_frame, text="Nenhum item encontrado\nAjuste a pesquisa ou adicione itens",
+                 font=("Arial", 16), fg="#888", bg="#111").pack(expand=True, fill="both")
+        conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
         updating = False
         return
 
-    largura_disponivel = frame_conteudo.winfo_width() or root.winfo_width()
-    if painel_aberto:
-        largura_disponivel -= 300
-    num_columns, card_width, use_list = compute_layout(largura_disponivel)
-    TAMANHO_CARD = card_width
+    largura = frame_conteudo.winfo_width() or root.winfo_width()
+    if painel_aberto and not painel_minimizado:
+        largura -= 300
+    num_cols, card_w, use_list = compute_layout(largura)
+    TAMANHO_CARD = card_w
 
-    print(f"Layout: num_columns={num_columns}, card_width={card_width}, use_list={use_list}")
+    row = 0
+    for cat, itens in sorted(categorias_dict.items()):
+        # Cabeçalho da categoria
+        frame_cat = tk.Frame(scroll_frame, bg="#111")
+        frame_cat.grid(row=row, column=0, columnspan=num_cols, sticky="ew", pady=(15, 5), padx=10)
 
-    if use_list:
-        for item in estoque:
-            try:
-                print(f"Renderizando item: {item['nome']} (ID: {item['id']})")
-                frame_item = tk.Frame(scroll_frame, bg="#2c2c2c", bd=1, relief="ridge")
-                frame_item.pack(fill="x", pady=5, padx=10)
+        aberto = categoria_aberta.get(cat, True)
+        icone = "▼" if aberto else "▶"
+        btn_cat = tk.Button(frame_cat, text=f"{icone} {cat} ({len(itens)})", font=("Arial", 14, "bold"),
+                            bg="#111", fg="#00d4ff", anchor="w", relief="flat",
+                            command=lambda c=cat: toggle_categoria(c))
+        btn_cat.pack(side="left", fill="x", expand=True)
 
-                image_path = item.get("image_path")
-                if image_path and os.path.exists(image_path):
-                    imagem = create_padded_photoimage(image_path, (50, 50))
-                    if imagem:
-                        lbl_img = tk.Label(frame_item, image=imagem, bg="#2c2c2c")
-                        lbl_img.image = imagem
-                        lbl_img.pack(side="left", padx=10, pady=5)
-                else:
-                    btn_add_img = tk.Button(frame_item, text="Add Img", command=lambda i=item: alterar_imagem(i), bg="#555", fg="white")
-                    btn_add_img.pack(side="left", padx=10, pady=5)
+        row += 1
 
-                texto = f"{item['id']} - {item['nome']} (Qtd: {item['quantidade']}) "
-                lbl = tk.Label(frame_item, text=texto, font=("Arial", 12), fg="white", bg="#2c2c2c", anchor="w", wraplength=largura_disponivel - 150)
-                lbl.pack(side="left", fill="x", expand=True, padx=10, pady=5)
+        if not aberto:
+            continue
 
-                frame_botoes = tk.Frame(frame_item, bg="#2c2c2c")
-                frame_botoes.pack(fill="x", pady=5, padx=10)
-
-                btn_sub = tk.Button(frame_botoes, text="➖", command=lambda i=item: subtrair_quantidade(i), bg="#dc3545", fg="white")
-                btn_sub.pack(side="left", padx=5)
-
-                entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=5)
-                entry_sub.pack(side="left", padx=5)
-
-                btn_add = tk.Button(frame_botoes, text="➕", command=lambda i=item: adicionar_quantidade(i), bg="#28a745", fg="white")
-                btn_add.pack(side="left", padx=5)
-
-                entry_add = tk.Entry(frame_botoes, textvariable=item["var_dir"], width=5)
-                entry_add.pack(side="left", padx=5)
-
-                def on_click(i=item):
-                    selecionar_item(i)
-
-                frame_item.bind("<Button-1>", lambda e, i=item: on_click(i))
-                for child in frame_item.winfo_children():
-                    child.bind("<Button-1>", lambda e, i=item: on_click(i))
-            except Exception as e:
-                print(f"Erro ao renderizar item {item.get('nome', 'Desconhecido')} (ID: {item.get('id', 'N/A')}): {e}")
-                continue
-    else:
-        row = 0
+        # Itens da categoria
         col = 0
-        largura_item = largura_disponivel // num_columns
-        for item in estoque:
-            try:
-                print(f"Renderizando item: {item['nome']} (ID: {item['id']})")
-                frame_principal = tk.Frame(scroll_frame, width=largura_item, height=TAMANHO_CARD + 50, bg="#111")
+        for item in itens:
+            if use_list:
+                # MODO LISTA
+                frame_item = tk.Frame(scroll_frame, bg="#2c2c2c", bd=1, relief="ridge")
+                frame_item.grid(row=row, column=0, columnspan=num_cols, sticky="ew", pady=5, padx=10)
+
+                if item.get("image_path") and os.path.exists(item["image_path"]):
+                    img = create_padded_photoimage(item["image_path"], (50, 50))
+                    if img:
+                        lbl_img = tk.Label(frame_item, image=img, bg="#2c2c2c")
+                        lbl_img.image = img
+                        lbl_img.pack(side="left", padx=10, pady=5)
+
+                txt = f"{item['id']} - {item['nome']} (Qtd: {item['quantidade']})"
+                tk.Label(frame_item, text=txt, font=("Arial", 12), fg="white",
+                         bg="#2c2c2c", anchor="w", wraplength=largura - 150).pack(side="left", fill="x", expand=True, padx=10, pady=5)
+
+                fb = tk.Frame(frame_item, bg="#2c2c2c")
+                fb.pack(fill="x", pady=5, padx=10)
+                tk.Button(fb, text="➖", command=lambda i=item: subtrair_quantidade(i), bg="#dc3545", fg="white").pack(side="left", padx=5)
+                tk.Entry(fb, textvariable=item["var_esq"], width=5).pack(side="left", padx=5)
+                tk.Button(fb, text="➕", command=lambda i=item: adicionar_quantidade(i), bg="#28a745", fg="white").pack(side="left", padx=5)
+                tk.Entry(fb, textvariable=item["var_dir"], width=5).pack(side="left", padx=5)
+
+                def click(i=item):
+                    selecionar_item(i)
+                frame_item.bind("<Button-1>", lambda e, i=item: click(i))
+                for child in frame_item.winfo_children():
+                    child.bind("<Button-1>", lambda e, i=item: click(i))
+
+                row += 1
+            else:
+                # MODO CARD
+                frame_principal = tk.Frame(scroll_frame, width=largura // num_cols, height=TAMANHO_CARD + 50, bg="#111")
                 frame_principal.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
                 frame_principal.grid_propagate(False)
 
-                cor_card = "#2c2c2c"
-                if item_selecionado == item:
-                    cor_card = "#4444aa"
-
-                frame_item = tk.Frame(frame_principal, bg=cor_card, bd=3, relief="ridge")
+                cor = "#4444aa" if item_selecionado == item else "#2c2c2c"
+                frame_item = tk.Frame(frame_principal, bg=cor, bd=3, relief="ridge")
                 frame_item.pack(expand=True, fill="both", padx=5, pady=5)
 
-                image_path = item.get("image_path")
-                if image_path and os.path.exists(image_path):
+                if item.get("image_path") and os.path.exists(item["image_path"]):
                     size = (TAMANHO_CARD - 20, TAMANHO_CARD - 100)
-                    imagem = create_padded_photoimage(image_path, size)
-                    if imagem:
-                        lbl_img = tk.Label(frame_item, image=imagem, bg=cor_card)
-                        lbl_img.image = imagem
-                        lbl_img.pack(pady=5)
+                    img = create_padded_photoimage(item["image_path"], size)
+                    if img:
+                        lbl = tk.Label(frame_item, image=img, bg=cor)
+                        lbl.image = img
+                        lbl.pack(pady=5)
                 else:
-                    btn_add_img = tk.Button(frame_item, text="Adicionar Imagem", command=lambda i=item: alterar_imagem(i), bg="#555", fg="white")
-                    btn_add_img.pack(pady=5)
+                    tk.Button(frame_item, text="Adicionar Imagem", command=lambda i=item: alterar_imagem(i),
+                              bg="#555", fg="white").pack(pady=5)
 
-                lbl_nome = tk.Label(
-                    frame_item,
-                    text=f"{item['id']}\n{item['nome']}",
-                    font=("Arial", 10, "bold"),
-                    fg="#00d4ff",
-                    bg=cor_card,
-                    justify="center",
-                    wraplength=TAMANHO_CARD - 20
-                )
-                lbl_nome.pack(pady=2)
+                tk.Label(frame_item, text=f"{item['id']}\n{item['nome']}", font=("Arial", 10, "bold"), fg="#00d4ff",
+                         bg=cor, justify="center", wraplength=TAMANHO_CARD - 20).pack(pady=2)
 
-                lbl_qtd = tk.Label(
-                    frame_item,
-                    text=f"Qtd: {item['quantidade']}",
-                    font=("Arial", 11, "bold"),
-                    fg="white",
-                    bg="#28a745" if item["quantidade"] > 0 else "#dc3545",
-                    padx=5,
-                    pady=3
-                )
-                lbl_qtd.pack(pady=2)
+                tk.Label(frame_item, text=f"Qtd: {item['quantidade']}", font=("Arial", 11, "bold"),
+                         fg="white", bg="#28a745" if item["quantidade"] > 0 else "#dc3545", padx=5, pady=3).pack(pady=2)
 
-                frame_botoes = tk.Frame(frame_item, bg=cor_card)
-                frame_botoes.pack(pady=5, anchor="center")
+                fb = tk.Frame(frame_item, bg=cor)
+                fb.pack(pady=5, anchor="center")
+                tk.Entry(fb, textvariable=item["var_esq"], width=4, justify="center", font=("Arial", 10)).pack(side="left", padx=2)
+                tk.Button(fb, text="➖", font=("Arial", 12, "bold"), bg="#dc3545", fg="white",
+                          command=lambda i=item: subtrair_quantidade(i), width=3, height=1).pack(side="left", padx=2)
+                tk.Button(fb, text="➕", font=("Arial", 12, "bold"), bg="#28a745", fg="white",
+                          command=lambda i=item: adicionar_quantidade(i), width=3, height=1).pack(side="left", padx=2)
+                tk.Entry(fb, textvariable=item["var_dir"], width=4, justify="center", font=("Arial", 10)).pack(side="left", padx=2)
 
-                entry_sub = tk.Entry(frame_botoes, textvariable=item["var_esq"], width=4, justify="center", font=("Arial", 10))
-                entry_sub.pack(side="left", padx=2)
+                tk.Label(frame_item, text=f"Criado: {item['data_criacao'][:10]}", font=("Arial", 8), fg="#888", bg=cor).pack(pady=2)
 
-                btn_sub = tk.Button(
-                    frame_botoes,
-                    text="➖",
-                    font=("Arial", 12, "bold"),
-                    bg="#dc3545",
-                    fg="white",
-                    activebackground="#a71d2a",
-                    activeforeground="white",
-                    command=lambda i=item: subtrair_quantidade(i),
-                    relief="flat",
-                    width=3,
-                    height=1
-                )
-                btn_sub.pack(side="left", padx=2)
-
-                btn_add = tk.Button(
-                    frame_botoes,
-                    text="➕",
-                    font=("Arial", 12, "bold"),
-                    bg="#28a745",
-                    fg="white",
-                    activebackground="#1e7e34",
-                    activeforeground="white",
-                    command=lambda i=item: adicionar_quantidade(i),
-                    relief="flat",
-                    width=3,
-                    height=1
-                )
-                btn_add.pack(side="left", padx=2)
-
-                entry_add = tk.Entry(frame_botoes, textvariable=item["var_dir"], width=4, justify="center", font=("Arial", 10))
-                entry_add.pack(side="left", padx=2)
-
-                lbl_datas = tk.Label(
-                    frame_item,
-                    text=f"Criado: {item['data_criacao'][:10]}",
-                    font=("Arial", 8),
-                    fg="#888",
-                    bg=cor_card,
-                    justify="center"
-                )
-                lbl_datas.pack(pady=2)
-
-                def on_click(i=item):
+                def click(i=item):
                     selecionar_item(i)
-
-                frame_item.bind("<Button-1>", lambda e, i=item: on_click(i))
+                frame_item.bind("<Button-1>", lambda e, i=item: click(i))
                 for child in frame_item.winfo_children():
-                    child.bind("<Button-1>", lambda e, i=item: on_click(i))
+                    child.bind("<Button-1>", lambda e, i=item: click(i))
 
                 col += 1
-                if col >= num_columns:
+                if col >= num_cols:
                     col = 0
                     row += 1
-            except Exception as e:
-                print(f"Erro ao renderizar item {item.get('nome', 'Desconhecido')} (ID: {item.get('id', 'N/A')}): {e}")
-                continue
+        row += 1
 
-        for c in range(num_columns):
-            scroll_frame.grid_columnconfigure(c, weight=1)
-        for r in range(row + 1):
-            scroll_frame.grid_rowconfigure(r, weight=1)
-
-    try:
-        scroll_frame.update_idletasks()
-        conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
-    except Exception as e:
-        print(f"Erro ao configurar scrollregion: {e}")
-    print("Tela atualizada com sucesso.")
+    for c in range(num_cols):
+        scroll_frame.grid_columnconfigure(c, weight=1)
+    scroll_frame.update_idletasks()
+    conteudo_canvas.configure(scrollregion=conteudo_canvas.bbox("all"))
     updating = False
+
 
 def abrir_excel():
     if os.path.exists(CAMINHO_DB):
         os.startfile(CAMINHO_DB)
     else:
-        messagebox.showwarning("Abrir Excel", "Arquivo de estoque não encontrado!")
+        messagebox.showwarning("Abrir Excel", "Arquivo não encontrado!")
 
+
+def alterar_imagem(item):
+    if not open_password_form("Alterar Imagem"):
+        return
+    caminho = filedialog.askopenfilename(title="Escolha a nova foto", filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")])
+    if not caminho:
+        return
+
+    salvar_estado()
+    if item.get("image_path") and os.path.exists(item["image_path"]):
+        os.remove(item["image_path"])
+    novo = salvar_imagem(caminho, item["nome"], item["id"])
+    if novo:
+        item["image_path"] = novo
+        item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        salvar_no_excel()
+        registrar_historico(f"Imagem alterada para '{item['nome']}' (ID:{item['id']})")
+        atualizar_tela()
+
+
+# --------------------------  INTERFACE PRINCIPAL  --------------------------
 container_principal = tk.Frame(root, bg="#111")
 container_principal.pack(fill="both", expand=True)
 
@@ -1176,72 +1137,68 @@ barra_botoes = tk.Frame(container_principal, bg="#333", height=60)
 barra_botoes.pack(fill="x")
 
 def estilo_botao(master, texto, comando, cor_fundo, cor_hover, lado):
-    btn = tk.Button(
-        master,
-        text=texto,
-        font=("Arial", 12, "bold"),
-        bg=cor_fundo,
-        fg="white",
-        activebackground=cor_hover,
-        activeforeground="white",
-        command=comando,
-        relief="flat",
-        bd=0,
-        padx=8,
-        pady=4,
-        highlightthickness=0
-    )
-    btn.pack(side=lado, padx=5, pady=5)
-
+    btn = tk.Button(master, text=texto, font=("Arial", 11, "bold"),
+                    bg=cor_fundo, fg="white", activebackground=cor_hover,
+                    command=comando, relief="flat", bd=0, padx=10, pady=6)
+    btn.pack(side=lado, padx=4, pady=4)
     def on_enter(e): btn.config(bg=cor_hover)
     def on_leave(e): btn.config(bg=cor_fundo)
-
     btn.bind("<Enter>", on_enter)
     btn.bind("<Leave>", on_leave)
     return btn
 
-btn_adicionar = estilo_botao(barra_botoes, "➕ Adicionar", adicionar_item, cor_fundo="#28a745", cor_hover="#218838", lado="left")
-btn_remover = estilo_botao(barra_botoes, "➖ Remover", remover_item, cor_fundo="#dc3545", cor_hover="#c82333", lado="left")
-btn_editar = estilo_botao(barra_botoes, "✏️ Editar", editar_item, cor_fundo="#ffc107", cor_hover="#e0a800", lado="left")
-btn_restaurar = estilo_botao(barra_botoes, "🔄 Restaurar", restaurar_item, cor_fundo="#17a2b8", cor_hover="#138496", lado="left")
-btn_abrir_excel = estilo_botao(barra_botoes, "📊 Abrir Excel", abrir_excel, cor_fundo="#17a2b8", cor_hover="#138496", lado="left")
-btn_undo = estilo_botao(barra_botoes, "↩️ Voltar", undo, cor_fundo="#6c757d", cor_hover="#5a6268", lado="right")
-btn_redo = estilo_botao(barra_botoes, "↪️ Avançar", redo, cor_fundo="#6c757d", cor_hover="#5a6268", lado="right")
-btn_exportar = estilo_botao(barra_botoes, "📤 Exportar", exportar_estoque, cor_fundo="#17a2b8", cor_hover="#138496", lado="right")
-btn_historico = estilo_botao(barra_botoes, "📜 Histórico", toggle_historico, cor_fundo="#6c757d", cor_hover="#5a6268", lado="right")
+# Botões da esquerda
+estilo_botao(barra_botoes, "Adicionar", adicionar_item, "#28a745", "#218838", "left")
+estilo_botao(barra_botoes, "Editar", editar_item, "#ffc107", "#e0a800", "left")
+estilo_botao(barra_botoes, "Remover", remover_item, "#dc3545", "#c82333", "left")
+estilo_botao(barra_botoes, "Restaurar", restaurar_item, "#17a2b8", "#138496", "left")
+estilo_botao(barra_botoes, "Abrir Excel", abrir_excel, "#6c757d", "#5a6268", "left")
 
+# Busca
+frame_center = tk.Frame(barra_botoes, bg="#333")
+frame_center.pack(side="left", fill="x", expand=True)
+entry_search = tk.Entry(frame_center, textvariable=search_var, font=("Arial", 12), bg="#444", fg="#aaa", insertbackground="white")
+entry_search.pack(pady=10, padx=20, fill="x")
+entry_search.insert(0, placeholder_text)
+entry_search.bind("<FocusIn>", on_search_focus_in)
+entry_search.bind("<FocusOut>", on_search_focus_out)
+entry_search.bind("<KeyRelease>", on_search_keyrelease)
+
+# Botões da direita
+estilo_botao(barra_botoes, "Voltar", undo, "#6c757d", "#5a6268", "right")
+estilo_botao(barra_botoes, "Avançar", redo, "#6c757d", "#5a6268", "right")
+estilo_botao(barra_botoes, "Exportar", exportar_estoque, "#17a2b8", "#138496", "right")
+btn_toggle_historico = estilo_botao(barra_botoes, "Histórico", toggle_historico, "#6c757d", "#5a6268", "right")
+
+# Área de conteúdo
 frame_conteudo = tk.Frame(container_principal, bg="#111")
 frame_conteudo.pack(side="left", fill="both", expand=True)
 
 conteudo_canvas = tk.Canvas(frame_conteudo, bg="#111", highlightthickness=0)
-conteudo_canvas.pack(side="left", fill="both", expand=True, padx=(0, 10))
-
+conteudo_canvas.pack(side="left", fill="both", expand=True)
 scrollbar = tk.Scrollbar(frame_conteudo, orient="vertical", command=conteudo_canvas.yview)
 scrollbar.pack(side="right", fill="y")
-
 conteudo_canvas.configure(yscrollcommand=scrollbar.set)
 
 scroll_frame = tk.Frame(conteudo_canvas, bg="#111")
 conteudo_canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
 
-def _on_mousewheel_itens(event):
+def _on_mousewheel(event):
     conteudo_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+conteudo_canvas.bind("<MouseWheel>", _on_mousewheel)
 
-conteudo_canvas.bind("<MouseWheel>", _on_mousewheel_itens)
-scroll_frame.bind("<MouseWheel>", _on_mousewheel_itens)
-frame_conteudo.bind("<MouseWheel>", _on_mousewheel_itens)
-
+# Painel de histórico
 painel_historico = tk.Frame(container_principal, bg="#222", width=300)
 
+# --------------------------  INICIALIZAÇÃO  --------------------------
 root.bind("<Control-z>", undo)
 root.bind("<Control-Shift-z>", redo)
-root.focus_set()
-
 root.bind("<Configure>", ajustar_modo_visualizacao)
 
-print("Iniciando programa...")
 carregar_do_excel()
+for cat in categorias:
+    categoria_aberta[cat] = True
 ajustar_modo_visualizacao()
 atualizar_tela()
-print("Programa iniciado.")
+
 root.mainloop()
