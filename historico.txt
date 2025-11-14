@@ -226,3 +226,4 @@
 [17:44:45] Adicionado 'Gugu' (ID: ID_)
 [17:47:46] Removido 'Gugu' (ID:ID_)
 [17:47:58] Editado 'gugu' → 'gugu' (ID: ID_16 → ID_3)
+[18:27:03] Removido 'gugu' (ID:ID_3)

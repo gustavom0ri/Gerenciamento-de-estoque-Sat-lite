@@ -569,11 +569,9 @@ def open_item_form(item=None):
         if not texto:
             lbl_aviso_id.config(text="ID obrigatório!", fg="#ff6b6b")
             return
-
         if not texto.startswith("ID_"):
             lbl_aviso_id.config(text="ID deve começar com 'ID_'", fg="#ff6b6b")
             return
-
         try:
             numero = int(texto[3:])
             if numero <= 0:
@@ -581,7 +579,6 @@ def open_item_form(item=None):
         except:
             lbl_aviso_id.config(text="Após 'ID_' deve ser um número positivo", fg="#ff6b6b")
             return
-
         duplicado = verificar_id_duplicado(texto, item)
         if duplicado:
             lbl_aviso_id.config(text=f"ID já usado por: {duplicado}", fg="#ff6b6b")
@@ -589,7 +586,7 @@ def open_item_form(item=None):
             lbl_aviso_id.config(text="ID válido e disponível", fg="#66ff66")
 
     entry_id.bind("<KeyRelease>", validar_id)
-    validar_id()  # Validação inicial
+    validar_id()
 
     # ---------- Nome ----------
     tk.Label(frame_esq, text="Nome:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15,0))
@@ -635,52 +632,9 @@ def open_item_form(item=None):
     tk.Button(frame_categoria, text="+", command=add_nova_categoria,
               bg="#17a2b8", fg="white", font=("Arial", 12, "bold"), width=3).pack(side="right", padx=5)
 
-    # ---------- IMAGEM ----------
-    IMG_SIZE = 400
-    canvas_imagem = tk.Canvas(frame_dir, width=IMG_SIZE, height=IMG_SIZE, bg="#444", highlightthickness=0)
-    canvas_imagem.pack(expand=True, padx=20, pady=20)
-
-    image_path_var = tk.StringVar(value=item.get("image_path", "") if is_edit else "")
-    current_photo = None
-
-    def update_image_preview():
-        nonlocal current_photo
-        caminho = image_path_var.get()
-        canvas_imagem.delete("all")
-        if caminho and os.path.exists(caminho):
-            try:
-                img = Image.open(caminho)
-                img.thumbnail((IMG_SIZE-40, IMG_SIZE-40), Image.Resampling.LANCZOS)
-                bg_img = Image.new("RGB", (IMG_SIZE, IMG_SIZE), "#444")
-                offset = ((IMG_SIZE - img.width)//2, (IMG_SIZE - img.height)//2)
-                bg_img.paste(img, offset)
-                current_photo = ImageTk.PhotoImage(bg_img)
-                canvas_imagem.create_image(IMG_SIZE//2, IMG_SIZE//2, image=current_photo)
-            except:
-                canvas_imagem.create_text(IMG_SIZE//2, IMG_SIZE//2, text="Erro na imagem", fill="red", font=("Arial", 14))
-        else:
-            canvas_imagem.create_text(IMG_SIZE//2, IMG_SIZE//2, text="Nenhuma imagem\nClique abaixo para selecionar", fill="#aaa", font=("Arial", 14))
-
-    if is_edit and item.get("image_path"):
-        image_path_var.set(item["image_path"])
-    update_image_preview()
-
-    def selecionar_imagem():
-        caminho = filedialog.askopenfilename(title="Escolha a foto do item",
-                                            filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")], parent=topo)
-        if caminho:
-            image_path_var.set(caminho)
-            update_image_preview()
-
-    tk.Button(frame_dir, text="Selecionar Imagem", command=selecionar_imagem,
-              bg="#17a2b8", fg="white", font=("Arial", 14, "bold"), padx=30, pady=12).pack(side="bottom", pady=20)
-
-    # ---------- BOTÕES: SALVAR E CANCELAR (VERTICAL, CENTRALIZADOS) ----------
-    frame_botoes = tk.Frame(topo, bg="#2c2c2c")
-    frame_botoes.pack(side="bottom", fill="x", pady=20, padx=20)
-
-    frame_botoes_interno = tk.Frame(frame_botoes, bg="#2c2c2c")
-    frame_botoes_interno.pack(expand=True)
+    # ---------- BOTÕES: SALVAR E CANCELAR (ABAIXO DO FORMULÁRIO, LADO ESQUERDO) ----------
+    frame_botoes_form = tk.Frame(frame_esq, bg="#2c2c2c")
+    frame_botoes_form.pack(fill="x", pady=(25, 10))
 
     def confirmar():
         novo_id = entry_id.get().strip()
@@ -767,7 +721,7 @@ def open_item_form(item=None):
                 "var_dir": tk.IntVar(value=1),
                 "id": novo_id,
                 "data_criacao": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "data_alteracao": datetime.datetime.now().strftime("%d/%m/%Y %H:%،M")
+                "data_alteracao": datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
             }
             estoque.append(new_item)
             registrar_historico(f"Adicionado '{nome}' (ID: {novo_id})")
@@ -776,15 +730,55 @@ def open_item_form(item=None):
         atualizar_tela()
         topo.destroy()
 
-    # BOTÃO SALVAR (em cima)
-    tk.Button(frame_botoes_interno, text="SALVAR", command=confirmar,
+    # BOTÃO SALVAR
+    tk.Button(frame_botoes_form, text="SALVAR", command=confirmar,
               bg="#28a745", fg="white", font=("Arial", 14, "bold"),
-              padx=40, pady=15).pack(pady=(0, 8))
+              padx=40, pady=15).pack(side="left", padx=(0, 10))
 
-    # BOTÃO CANCELAR (em baixo, maior)
-    tk.Button(frame_botoes_interno, text="CANCELAR", command=topo.destroy,
+    # BOTÃO CANCELAR (em baixo)
+    tk.Button(frame_botoes_form, text="CANCELAR", command=topo.destroy,
               bg="#dc3545", fg="white", font=("Arial", 16, "bold"),
-              padx=60, pady=18).pack()
+              padx=60, pady=18).pack(side="left")
+
+    # ---------- IMAGEM (LADO DIREITO) ----------
+    IMG_SIZE = 400
+    canvas_imagem = tk.Canvas(frame_dir, width=IMG_SIZE, height=IMG_SIZE, bg="#444", highlightthickness=0)
+    canvas_imagem.pack(expand=True, padx=20, pady=(20, 10))
+
+    image_path_var = tk.StringVar(value=item.get("image_path", "") if is_edit else "")
+    current_photo = None
+
+    def update_image_preview():
+        nonlocal current_photo
+        caminho = image_path_var.get()
+        canvas_imagem.delete("all")
+        if caminho and os.path.exists(caminho):
+            try:
+                img = Image.open(caminho)
+                img.thumbnail((IMG_SIZE-40, IMG_SIZE-40), Image.Resampling.LANCZOS)
+                bg_img = Image.new("RGB", (IMG_SIZE, IMG_SIZE), "#444")
+                offset = ((IMG_SIZE - img.width)//2, (IMG_SIZE - img.height)//2)
+                bg_img.paste(img, offset)
+                current_photo = ImageTk.PhotoImage(bg_img)
+                canvas_imagem.create_image(IMG_SIZE//2, IMG_SIZE//2, image=current_photo)
+            except:
+                canvas_imagem.create_text(IMG_SIZE//2, IMG_SIZE//2, text="Erro na imagem", fill="red", font=("Arial", 14))
+        else:
+            canvas_imagem.create_text(IMG_SIZE//2, IMG_SIZE//2, text="Nenhuma imagem\nClique abaixo para selecionar", fill="#aaa", font=("Arial", 14))
+
+    if is_edit and item.get("image_path"):
+        image_path_var.set(item["image_path"])
+    update_image_preview()
+
+    def selecionar_imagem():
+        caminho = filedialog.askopenfilename(title="Escolha a foto do item",
+                                            filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")], parent=topo)
+        if caminho:
+            image_path_var.set(caminho)
+            update_image_preview()
+
+    tk.Button(frame_dir, text="Selecionar Imagem", command=selecionar_imagem,
+              bg="#17a2b8", fg="white", font=("Arial", 14, "bold"), padx=30, pady=12).pack(side="bottom", pady=(0, 20))
 
     # Enter = Salvar
     topo.bind("<Return>", lambda e: confirmar())
