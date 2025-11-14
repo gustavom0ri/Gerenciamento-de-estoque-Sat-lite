@@ -501,6 +501,27 @@ def open_password_form(action_title):
     root.wait_window(topo)
     return result[0]
 
+# ======================  FUNÇÃO PARA VERIFICAR ID DUPLICADO  ======================
+
+def verificar_id_duplicado(id_proposto, item_atual=None):
+    """Retorna o nome do item que já tem esse ID, ou None se disponível"""
+    for item in estoque:
+        if item["id"] == id_proposto:
+            if item_atual is not None and item is item_atual:
+                continue
+            return item["nome"]
+    return None
+
+# ======================  FUNÇÃO PARA VERIFICAR ID DUPLICADO  ======================
+def verificar_id_duplicado(id_proposto, item_atual=None):
+    """Retorna None se OK, ou o nome do item que já tem esse ID"""
+    for item in estoque:
+        if item["id"] == id_proposto:
+            if item_atual is not None and item is item_atual:
+                continue  # permite manter o mesmo ID ao editar o próprio item
+            return item["nome"]
+    return None
+
 
 def open_item_form(item=None):
     global categorias
@@ -512,28 +533,71 @@ def open_item_form(item=None):
     topo.configure(bg="#2c2c2c")
     topo.transient(root)
     topo.grab_set()
-    topo.geometry("1000x600")
+    topo.geometry("1100x620")
     topo.update_idletasks()
-    x = (root.winfo_screenwidth() - 1000) // 2
-    y = (root.winfo_screenheight() - 600) // 2
+    x = (root.winfo_screenwidth() - 1100) // 2
+    y = (root.winfo_screenheight() - 620) // 2
     topo.geometry(f"+{x}+{y}")
 
-    # === DIVISÃO HORIZONTAL ===
+    # ---------- LADO ESQUERDO ----------
     frame_esq = tk.Frame(topo, bg="#2c2c2c")
     frame_esq.pack(side="left", fill="both", expand=True, padx=20, pady=20)
 
+    # ---------- LADO DIREITO ----------
     frame_dir = tk.Frame(topo, bg="#333", bd=2, relief="groove")
     frame_dir.pack(side="right", fill="both", expand=True, padx=20, pady=20)
 
     tk.Label(frame_esq, text=title, font=("Arial", 20, "bold"), bg="#2c2c2c", fg="#00d4ff").pack(pady=(0, 20))
 
-    # Nome
-    tk.Label(frame_esq, text="Nome:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w")
+    # ---------- ID COM VALIDAÇÃO OBRIGATÓRIA ----------
+    tk.Label(frame_esq, text="ID do Item (ex: ID_1):", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w")
+    entry_id = tk.Entry(frame_esq, font=("Arial", 12), bg="#444", fg="white", width=20)
+    entry_id.pack(anchor="w", pady=5)
+    lbl_aviso_id = tk.Label(frame_esq, text="", bg="#2c2c2c", fg="#ff6b6b", font=("Arial", 10))
+    lbl_aviso_id.pack(anchor="w")
+
+    if is_edit:
+        entry_id.insert(0, item["id"])
+    else:
+        proximo = 1
+        while any(i["id"] == f"ID_{proximo}" for i in estoque):
+            proximo += 1
+        entry_id.insert(0, f"ID_{proximo}")
+
+    def validar_id(event=None):
+        texto = entry_id.get().strip()
+        if not texto:
+            lbl_aviso_id.config(text="ID obrigatório!", fg="#ff6b6b")
+            return
+
+        if not texto.startswith("ID_"):
+            lbl_aviso_id.config(text="ID deve começar com 'ID_'", fg="#ff6b6b")
+            return
+
+        try:
+            numero = int(texto[3:])
+            if numero <= 0:
+                raise ValueError
+        except:
+            lbl_aviso_id.config(text="Após 'ID_' deve ser um número positivo", fg="#ff6b6b")
+            return
+
+        duplicado = verificar_id_duplicado(texto, item)
+        if duplicado:
+            lbl_aviso_id.config(text=f"ID já usado por: {duplicado}", fg="#ff6b6b")
+        else:
+            lbl_aviso_id.config(text="ID válido e disponível", fg="#66ff66")
+
+    entry_id.bind("<KeyRelease>", validar_id)
+    validar_id()  # Validação inicial
+
+    # ---------- Nome ----------
+    tk.Label(frame_esq, text="Nome:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15,0))
     entry_nome = tk.Entry(frame_esq, font=("Arial", 12), bg="#444", fg="white")
     entry_nome.pack(fill="x", pady=5)
     if is_edit: entry_nome.insert(0, item["nome"])
 
-    # Quantidade + Tipo (Unidade/Kg)
+    # ---------- Quantidade + Tipo ----------
     tk.Label(frame_esq, text="Quantidade:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15,0))
     frame_qtd = tk.Frame(frame_esq, bg="#2c2c2c")
     frame_qtd.pack(fill="x", pady=5)
@@ -544,14 +608,14 @@ def open_item_form(item=None):
     tk.Radiobutton(frame_qtd, text="Kg", variable=var_tipo, value="Kg", bg="#2c2c2c", fg="white", selectcolor="#444").pack(side="left")
     if is_edit: entry_quantidade.insert(0, str(item["quantidade"]))
 
-    # Preço
+    # ---------- Preço ----------
     tk.Label(frame_esq, text="Preço (opcional):", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15,0))
     entry_preco = tk.Entry(frame_esq, font=("Arial", 12), bg="#444", fg="white")
     entry_preco.pack(fill="x", pady=5)
     if is_edit and item.get("preco") is not None:
         entry_preco.insert(0, str(item["preco"]))
 
-    # Categoria
+    # ---------- Categoria ----------
     tk.Label(frame_esq, text="Categoria:", bg="#2c2c2c", fg="white", font=("Arial", 12)).pack(anchor="w", pady=(15,0))
     frame_categoria = tk.Frame(frame_esq, bg="#2c2c2c")
     frame_categoria.pack(fill="x", pady=5)
@@ -571,7 +635,7 @@ def open_item_form(item=None):
     tk.Button(frame_categoria, text="+", command=add_nova_categoria,
               bg="#17a2b8", fg="white", font=("Arial", 12, "bold"), width=3).pack(side="right", padx=5)
 
-    # === IMAGEM À DIREITA ===
+    # ---------- IMAGEM ----------
     IMG_SIZE = 400
     canvas_imagem = tk.Canvas(frame_dir, width=IMG_SIZE, height=IMG_SIZE, bg="#444", highlightthickness=0)
     canvas_imagem.pack(expand=True, padx=20, pady=20)
@@ -587,10 +651,10 @@ def open_item_form(item=None):
             try:
                 img = Image.open(caminho)
                 img.thumbnail((IMG_SIZE-40, IMG_SIZE-40), Image.Resampling.LANCZOS)
-                bg = Image.new("RGB", (IMG_SIZE, IMG_SIZE), "#444")
+                bg_img = Image.new("RGB", (IMG_SIZE, IMG_SIZE), "#444")
                 offset = ((IMG_SIZE - img.width)//2, (IMG_SIZE - img.height)//2)
-                bg.paste(img, offset)
-                current_photo = ImageTk.PhotoImage(bg)
+                bg_img.paste(img, offset)
+                current_photo = ImageTk.PhotoImage(bg_img)
                 canvas_imagem.create_image(IMG_SIZE//2, IMG_SIZE//2, image=current_photo)
             except:
                 canvas_imagem.create_text(IMG_SIZE//2, IMG_SIZE//2, text="Erro na imagem", fill="red", font=("Arial", 14))
@@ -602,7 +666,8 @@ def open_item_form(item=None):
     update_image_preview()
 
     def selecionar_imagem():
-        caminho = filedialog.askopenfilename(title="Escolha a foto do item", filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")], parent=topo)
+        caminho = filedialog.askopenfilename(title="Escolha a foto do item",
+                                            filetypes=[("Imagens", "*.png *.jpg *.jpeg *.gif")], parent=topo)
         if caminho:
             image_path_var.set(caminho)
             update_image_preview()
@@ -610,32 +675,41 @@ def open_item_form(item=None):
     tk.Button(frame_dir, text="Selecionar Imagem", command=selecionar_imagem,
               bg="#17a2b8", fg="white", font=("Arial", 14, "bold"), padx=30, pady=12).pack(side="bottom", pady=20)
 
-    # === BOTÕES SALVAR/CANCELAR ===
+    # ---------- BOTÕES: SALVAR E CANCELAR (VERTICAL, CENTRALIZADOS) ----------
     frame_botoes = tk.Frame(topo, bg="#2c2c2c")
-    frame_botoes.pack(side="bottom", fill="x", pady=20)
+    frame_botoes.pack(side="bottom", fill="x", pady=20, padx=20)
+
+    frame_botoes_interno = tk.Frame(frame_botoes, bg="#2c2c2c")
+    frame_botoes_interno.pack(expand=True)
 
     def confirmar():
+        novo_id = entry_id.get().strip()
+        if not novo_id.startswith("ID_") or not novo_id[3:].isdigit() or int(novo_id[3:]) <= 0:
+            messagebox.showerror("ID Inválido", "Use o formato: ID_1, ID_2, etc.")
+            return
+
+        duplicado = verificar_id_duplicado(novo_id, item)
+        if duplicado:
+            messagebox.showerror("ID Duplicado", f"Este ID já está em uso por:\n→ {duplicado}")
+            return
+
         nome = entry_nome.get().strip()
         if not nome:
-            messagebox.showerror("Erro", "O nome não pode estar vazio!")
+            messagebox.showerror("Erro", "O nome é obrigatório!")
             return
 
         try:
             qtd = float(entry_quantidade.get())
             if qtd < 0: raise ValueError
         except:
-            messagebox.showerror("Erro", "Quantidade deve ser um número positivo!")
+            messagebox.showerror("Erro", "Quantidade inválida!")
             return
 
         preco_str = entry_preco.get().strip()
-        preco = None
-        if preco_str:
-            try:
-                preco = float(preco_str)
-                if preco < 0: raise ValueError
-            except:
-                messagebox.showerror("Erro", "Preço deve ser um número válido!")
-                return
+        preco = None if not preco_str else float(preco_str or 0)
+        if preco is not None and preco < 0:
+            messagebox.showerror("Erro", "Preço não pode ser negativo!")
+            return
 
         categoria = combobox_categoria.get() or "Sem Categoria"
         tipo_unidade = var_tipo.get()
@@ -649,35 +723,37 @@ def open_item_form(item=None):
 
         if is_edit:
             nome_antigo = item["nome"]
-            id_item = item["id"]
+            id_antigo = item["id"]
             image_path_antigo = item.get("image_path")
 
-            item["nome"] = nome
-            item["quantidade"] = qtd
-            item["tipo_unidade"] = tipo_unidade
-            item["preco"] = preco
-            item["categoria"] = categoria
-            item["data_alteracao"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+            if novo_id != id_antigo and image_path_antigo:
+                antigo_nome_arq = os.path.basename(image_path_antigo)
+                novo_nome_arq = f"{nome}_{novo_id}.jpg"
+                novo_caminho = os.path.join(PASTA_IMAGENS, novo_nome_arq)
+                if os.path.exists(image_path_antigo):
+                    shutil.move(image_path_antigo, novo_caminho)
+                item["image_path"] = novo_caminho
 
-            if new_image_path and new_image_path != image_path_antigo:
+            item.update({
+                "id": novo_id,
+                "nome": nome,
+                "quantidade": qtd,
+                "tipo_unidade": tipo_unidade,
+                "preco": preco,
+                "categoria": categoria,
+                "data_alteracao": datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+            })
+
+            if new_image_path and new_image_path != image_path_antigo and new_image_path != item["image_path"]:
                 if image_path_antigo and os.path.exists(image_path_antigo):
                     os.remove(image_path_antigo)
-                item["image_path"] = salvar_imagem(new_image_path, nome, id_item)
-            elif nome_antigo != nome and image_path_antigo:
-                caminho_antigo = image_path_antigo
-                nome_arquivo_novo = f"{nome}_{id_item}.jpg"
-                caminho_novo = os.path.join(PASTA_IMAGENS, nome_arquivo_novo)
-                if os.path.exists(caminho_antigo):
-                    shutil.move(caminho_antigo, caminho_novo)
-                    item["image_path"] = caminho_novo
+                item["image_path"] = salvar_imagem(new_image_path, nome, novo_id)
 
-            registrar_historico(f"Editado '{nome_antigo}' → '{nome}' (ID:{id_item})")
+            registrar_historico(f"Editado '{nome_antigo}' → '{nome}' (ID: {id_antigo} → {novo_id})")
         else:
-            item_id = f"ID_{len(estoque) + 1}"
-            data_agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-            saved_path = salvar_imagem(new_image_path, nome, item_id)
+            saved_path = salvar_imagem(new_image_path, nome, novo_id)
             if not saved_path:
-                messagebox.showerror("Erro", "Falha ao salvar a imagem!")
+                messagebox.showerror("Erro", "Falha ao salvar imagem!")
                 return
 
             new_item = {
@@ -689,20 +765,28 @@ def open_item_form(item=None):
                 "categoria": categoria,
                 "var_esq": tk.IntVar(value=1),
                 "var_dir": tk.IntVar(value=1),
-                "id": item_id,
-                "data_criacao": data_agora,
-                "data_alteracao": data_agora
+                "id": novo_id,
+                "data_criacao": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "data_alteracao": datetime.datetime.now().strftime("%d/%m/%Y %H:%،M")
             }
             estoque.append(new_item)
-            registrar_historico(f"Adicionado '{nome}' (ID:{item_id})")
+            registrar_historico(f"Adicionado '{nome}' (ID: {novo_id})")
 
         salvar_no_excel()
         atualizar_tela()
         topo.destroy()
 
-    tk.Button(frame_botoes, text="SALVAR", command=confirmar, bg="#28a745", fg="white", font=("Arial", 14, "bold"), padx=40, pady=15).pack(side="left", padx=50)
-    tk.Button(frame_botoes, text="CANCELAR", command=topo.destroy, bg="#dc3545", fg="white", font=("Arial", 14, "bold"), padx=40, pady=15).pack(side="right", padx=50)
+    # BOTÃO SALVAR (em cima)
+    tk.Button(frame_botoes_interno, text="SALVAR", command=confirmar,
+              bg="#28a745", fg="white", font=("Arial", 14, "bold"),
+              padx=40, pady=15).pack(pady=(0, 8))
 
+    # BOTÃO CANCELAR (em baixo, maior)
+    tk.Button(frame_botoes_interno, text="CANCELAR", command=topo.destroy,
+              bg="#dc3545", fg="white", font=("Arial", 16, "bold"),
+              padx=60, pady=18).pack()
+
+    # Enter = Salvar
     topo.bind("<Return>", lambda e: confirmar())
 
 
@@ -791,7 +875,7 @@ def restaurar_item():
     tk.Button(topo, text="Restaurar", command=confirmar, bg="#28a745",
               fg="white").pack(side="left", padx=20, pady=10)
     tk.Button(topo, text="Cancelar", command=topo.destroy, bg="#6c757d",
-              fg="white").pack(side="right", padx=20, pady=10)
+              fg="white", font=("Arial", 12, "bold"), ipadx=60, ipady=8).pack(side="right", padx=20, pady=10)
 
 
 def adicionar_quantidade(item):

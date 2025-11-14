@@ -222,3 +222,7 @@
 [23:41:39] Adicionado 'argam' (ID:ID_15)
 [23:42:08] Editado 'Argamassa 20kg' → 'Argamassa' (ID:ID_1)
 [23:43:11] Adicionado 'gugu' (ID:ID_16)
+[17:44:11] Editado 'Bucha 12 mm' → 'Bucha 12 mm' (ID: ID_3 → ID_7)
+[17:44:45] Adicionado 'Gugu' (ID: ID_)
+[17:47:46] Removido 'Gugu' (ID:ID_)
+[17:47:58] Editado 'gugu' → 'gugu' (ID: ID_16 → ID_3)
